@@ -1,0 +1,58 @@
+# Emby Telegram Bot 配置文件示例
+# 复制此文件为 config.yaml 并填入实际配置
+
+app:
+  name: "Emby Telegram Bot"
+  version: "1.0.0"
+  debug: false
+
+telegram:
+  # Bot Token (建议通过环境变量 TELEGRAM_BOT_TOKEN 设置)
+  token: "YOUR_BOT_TOKEN_HERE"
+  # 更新超时时间(秒)
+  timeout: 60
+  # 管理员 Telegram ID 列表
+  admin_ids:
+    - 123456789  # 替换为你的 Telegram ID
+    # - 987654321
+
+database:
+  # 数据库驱动: sqlite, mysql, postgres
+  driver: "sqlite"
+  # 数据源名称 (DSN)
+  # SQLite: data/emby.db
+  # MySQL: username:password@tcp(localhost:3306)/dbname?charset=utf8mb4&parseTime=True&loc=Local
+  # PostgreSQL: host=localhost user=postgres password=secret dbname=emby port=5432 sslmode=disable
+  dsn: "data/emby.db"
+
+account:
+  # 默认账号有效期(天)
+  default_expire_days: 30
+  # 默认最大设备数
+  default_max_devices: 3
+  # 账号用户名前缀
+  username_prefix: "emby_"
+  # 自动生成密码长度
+  password_length: 12
+
+emby:
+  # Emby 服务器地址
+  server_url: "https://your-emby-server.com"
+  # API Key (建议通过环境变量 EMBY_API_KEY 设置)
+  api_key: "YOUR_EMBY_API_KEY_HERE"
+  # 是否启用与 Emby 同步
+  enable_sync: true
+  # 创建账号时自动同步到 Emby
+  sync_on_create: true
+  # 删除账号时自动从 Emby 删除
+  sync_on_delete: true
+  # HTTP 超时时间(秒)
+  timeout: 30
+  # 失败重试次数
+  retry_count: 3
+
+log:
+  # 日志级别: debug, info, warn, error
+  level: "info"
+  # 日志输出: stdout, stderr, 或文件路径
+  output: "stdout"
