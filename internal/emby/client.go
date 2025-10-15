@@ -51,7 +51,6 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body interf
 	var lastErr error
 	for i := 0; i <= c.retryCount; i++ {
 		if i > 0 {
-			logger.DebugKV("emby API retry attempt", "attempt", i, "method", method, "path", path)
 			time.Sleep(time.Second * time.Duration(i)) // 指数退避
 		}
 
@@ -80,7 +79,6 @@ func (c *Client) doFormRequest(ctx context.Context, method, path string, formDat
 	var lastErr error
 	for i := 0; i <= c.retryCount; i++ {
 		if i > 0 {
-			logger.DebugKV("emby API retry attempt", "attempt", i, "method", method, "path", path)
 			time.Sleep(time.Second * time.Duration(i))
 		}
 
@@ -127,12 +125,6 @@ func (c *Client) doRequestOnce(ctx context.Context, method, path string, body in
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("X-Emby-Token", c.apiKey)
 
-	// 记录请求
-	logger.InfoKV("emby API request", "method", method, "url", url)
-	if body != nil {
-		logger.DebugKV("request body", "length_bytes", len(jsonData))
-	}
-
 	// 发送请求
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -145,10 +137,6 @@ func (c *Client) doRequestOnce(ctx context.Context, method, path string, body in
 	if err != nil {
 		return fmt.Errorf("read response body: %w", err)
 	}
-
-	// 记录响应
-	logger.InfoKV("emby API response", "status_code", resp.StatusCode)
-	logger.DebugKV("response body", "content", string(respBody))
 
 	// 处理 HTTP 状态码
 	if resp.StatusCode >= 400 {
@@ -185,10 +173,6 @@ func (c *Client) doFormRequestOnce(ctx context.Context, method, path string, for
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("X-Emby-Token", c.apiKey)
 
-	// 记录请求
-	logger.InfoKV("emby API request (form)", "method", method, "url", fullURL)
-	logger.DebugKV("form data", "length_bytes", len(formBody))
-
 	// 发送请求
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -201,10 +185,6 @@ func (c *Client) doFormRequestOnce(ctx context.Context, method, path string, for
 	if err != nil {
 		return fmt.Errorf("read response body: %w", err)
 	}
-
-	// 记录响应
-	logger.InfoKV("emby API response", "status_code", resp.StatusCode)
-	logger.DebugKV("response body", "content", string(respBody))
 
 	// 处理 HTTP 状态码
 	if resp.StatusCode >= 400 {
@@ -248,6 +228,19 @@ func (c *Client) Ping(ctx context.Context) error {
 		return fmt.Errorf("ping emby server: %w", err)
 	}
 
-	logger.InfoKV("emby server connected", "name", info.ServerName, "version", info.Version)
+	logger.Infof("emby server connected: %s, version: %s", info.ServerName, info.Version)
 	return nil
+}
+
+func (c *Client) GetSessions(ctx context.Context) ([]SessionInfo, error) {
+	if !c.enabled {
+		return nil, ErrSyncDisabled
+	}
+
+	var sessions []SessionInfo
+	if err := c.doRequest(ctx, http.MethodGet, "/Sessions", nil, &sessions); err != nil {
+		return nil, fmt.Errorf("get sessions: %w", err)
+	}
+
+	return sessions, nil
 }

@@ -16,7 +16,7 @@ func (b *Bot) handleCallbackQuery(ctx context.Context, query *tgbotapi.CallbackQ
 	// 确保用户存在
 	currentUser, err := b.userService.GetOrCreate(ctx, query.From)
 	if err != nil {
-		logger.ErrorKV("failed to get or create user", "error", err)
+		logger.Errorf("failed to get or create user: %v", err)
 		b.answerCallback(query.ID, "系统错误，请稍后再试", true)
 		return
 	}
@@ -36,7 +36,7 @@ func (b *Bot) handleCallbackQuery(ctx context.Context, query *tgbotapi.CallbackQ
 
 	action := parts[0]
 
-	logger.InfoKV("user clicked button", "user", currentUser.DisplayName(), "data", query.Data)
+	logger.Infof("user clicked button: %s, data: %s", currentUser.DisplayName(), query.Data)
 
 	// 路由到对应的处理函数
 	var response CallbackResponse
@@ -95,7 +95,7 @@ func (b *Bot) sendCallbackResponse(query *tgbotapi.CallbackQuery, response Callb
 				msg.ReplyMarkup = response.EditMarkup
 			}
 			if _, err := b.api.Send(msg); err != nil {
-				logger.ErrorKV("failed to send message", "error", err)
+				logger.Errorf("failed to send message: %v", err)
 			}
 		} else {
 			// 编辑原消息
@@ -109,7 +109,7 @@ func (b *Bot) sendCallbackResponse(query *tgbotapi.CallbackQuery, response Callb
 				edit.ReplyMarkup = response.EditMarkup
 			}
 			if _, err := b.api.Send(edit); err != nil {
-				logger.ErrorKV("failed to edit message", "error", err)
+				logger.Errorf("failed to edit message: %v", err)
 			}
 		}
 	}
@@ -132,7 +132,7 @@ func (b *Bot) answerCallback(callbackID, text string, showAlert bool) {
 	callback := tgbotapi.NewCallback(callbackID, text)
 	callback.ShowAlert = showAlert
 	if _, err := b.api.Request(callback); err != nil {
-		logger.ErrorKV("failed to answer callback", "error", err)
+		logger.Errorf("failed to answer callback: %v", err)
 	}
 }
 
@@ -148,7 +148,7 @@ func getCallbackParam(parts []string, index int) string {
 func strToInt(s string) int {
 	n, err := strconv.Atoi(s)
 	if err != nil {
-		logger.WarnKV("failed to convert string to int", "input", s, "error", err)
+		logger.Warnf("failed to convert string to int: %s, error: %v", s, err)
 		return 0
 	}
 	return n
@@ -158,7 +158,7 @@ func strToInt(s string) int {
 func strToUint(s string) uint {
 	n, err := strconv.ParseUint(s, 10, 32)
 	if err != nil {
-		logger.WarnKV("failed to convert string to uint", "input", s, "error", err)
+		logger.Warnf("failed to convert string to uint: %s, error: %v", s, err)
 		return 0
 	}
 	return uint(n)

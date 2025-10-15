@@ -44,7 +44,7 @@ func Init(level, output string) error {
 
 	// 创建核心
 	core := zapcore.NewCore(
-		zapcore.NewConsoleEncoder(encoderConfig),
+		newAlignedEncoder(encoderConfig),
 		writer,
 		zapLevel,
 	)
@@ -132,31 +132,4 @@ func Fatalf(template string, args ...interface{}) {
 // With 添加结构化字段
 func With(args ...interface{}) *zap.SugaredLogger {
 	return log.With(args...)
-}
-
-// InfoKV outputs structured info log with key-value pairs
-// Usage: logger.InfoKV("message", "key1", value1, "key2", value2)
-func InfoKV(msg string, keysAndValues ...interface{}) {
-	log.Infow(msg, keysAndValues...)
-}
-
-// ErrorKV outputs structured error log with key-value pairs
-func ErrorKV(msg string, keysAndValues ...interface{}) {
-	log.Errorw(msg, keysAndValues...)
-}
-
-// WarnKV outputs structured warn log with key-value pairs
-func WarnKV(msg string, keysAndValues ...interface{}) {
-	log.Warnw(msg, keysAndValues...)
-}
-
-// DebugKV outputs structured debug log with key-value pairs
-func DebugKV(msg string, keysAndValues ...interface{}) {
-	log.Debugw(msg, keysAndValues...)
-}
-
-// WithFields creates a logger with context fields
-// Usage: contextLogger := logger.WithFields("request_id", id, "user", username)
-func WithFields(keysAndValues ...interface{}) *zap.SugaredLogger {
-	return log.With(keysAndValues...)
 }

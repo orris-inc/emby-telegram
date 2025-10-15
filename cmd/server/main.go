@@ -32,8 +32,8 @@ func main() {
 	defer logger.Sync()
 
 	logger.Info("===== emby telegram bot starting =====")
-	logger.InfoKV("version", "value", cfg.App.Version)
-	logger.InfoKV("debug mode", "enabled", cfg.App.Debug)
+	logger.Infof("version: %s", cfg.App.Version)
+	logger.Infof("debug mode: %v", cfg.App.Debug)
 
 	// 初始化数据库
 	db, err := sqlite.Open(cfg.Database.DSN, cfg.App.Debug)
@@ -67,7 +67,7 @@ func main() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		if err := embyClient.Ping(ctx); err != nil {
-			logger.WarnKV("emby server connection failed", "mode", "offline", "error", err)
+			logger.Warnf("emby server connection failed, running in offline mode: %v", err)
 			embyClient = nil // 降级为离线模式
 		} else {
 			logger.Info("✓ emby server connected")

@@ -10,6 +10,7 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
 	"emby-telegram/internal/account"
+	"emby-telegram/internal/logger"
 	"emby-telegram/internal/user"
 	"emby-telegram/pkg/timeutil"
 )
@@ -42,6 +43,7 @@ func (b *Bot) handleAdmin(ctx context.Context, msg *tgbotapi.Message, args []str
 
 <b>统计信息:</b>
 /stats - 查看系统统计
+/playingstats - 查看 Emby 播放状态
 
 <b>使用示例:</b>
 <code>/users 1</code> - 查看第1页用户
@@ -353,4 +355,75 @@ func (b *Bot) handleStats(ctx context.Context, msg *tgbotapi.Message, args []str
 		expiredAccounts,
 		float64(totalAccounts)/float64(totalUsers),
 	), nil
+}
+
+func (b *Bot) handlePlayingStats(ctx context.Context, msg *tgbotapi.Message, args []string) (string, error) {
+	if err := b.requireAdmin(msg.From.ID); err != nil {
+		return "❌ 此命令需要管理员权限", nil
+	}
+
+	if b.embyClient == nil {
+		return "❌ Emby 同步未启用", nil
+	}
+
+	sessions, err := b.embyClient.GetSessions(ctx)
+	if err != nil {
+		logger.Errorf("failed to get emby sessions: %v", err)
+		return "", fmt.Errorf("获取播放状态失败: %w", err)
+	}
+
+	if len(sessions) == 0 {
+		return "📺 当前没有活跃的播放会话", nil
+	}
+
+	var playingSessions []string
+	var idleSessions []string
+
+	for _, session := range sessions {
+		if session.IsPlaying() {
+			item := session.NowPlayingItem
+			progress := session.GetProgress()
+
+			info := fmt.Sprintf("👤 <b>%s</b>\n", session.UserName)
+			info += fmt.Sprintf("   📱 %s (%s)\n", session.DeviceName, session.Client)
+			info += fmt.Sprintf("   🎬 %s\n", item.GetDisplayName())
+			info += fmt.Sprintf("   ⏱️ %.1f%% | %s",
+				progress,
+				session.PlayState.PlayMethod)
+
+			if session.TranscodingInfo != nil && (!session.TranscodingInfo.IsVideoDirect || !session.TranscodingInfo.IsAudioDirect) {
+				info += fmt.Sprintf(" | 转码中 (%.1f%%)", session.TranscodingInfo.CompletionPercentage)
+			}
+
+			playingSessions = append(playingSessions, info)
+		} else if session.NowPlayingItem != nil {
+			idleSessions = append(idleSessions, fmt.Sprintf("👤 <b>%s</b> - 已暂停", session.UserName))
+		}
+	}
+
+	result := "📺 <b>Emby 播放状态</b>\n\n"
+
+	if len(playingSessions) > 0 {
+		result += fmt.Sprintf("<b>正在播放 (%d):</b>\n", len(playingSessions))
+		for i, info := range playingSessions {
+			if i > 0 {
+				result += "\n"
+			}
+			result += info + "\n"
+		}
+	}
+
+	if len(idleSessions) > 0 {
+		if len(playingSessions) > 0 {
+			result += "\n"
+		}
+		result += fmt.Sprintf("<b>已暂停 (%d):</b>\n", len(idleSessions))
+		for _, info := range idleSessions {
+			result += info + "\n"
+		}
+	}
+
+	result += fmt.Sprintf("\n📊 总会话数: %d", len(sessions))
+
+	return result, nil
 }

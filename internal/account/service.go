@@ -60,7 +60,7 @@ func (s *Service) syncToEmby(ctx context.Context, acc *Account, plainPassword st
 			return nil
 		}
 		acc.MarkSyncFailed(err)
-		logger.ErrorKV("sync to emby failed", "username", acc.Username, "error", err)
+		logger.Errorf("sync to emby failed for %s: %v", acc.Username, err)
 		return err
 	}
 
@@ -70,10 +70,10 @@ func (s *Service) syncToEmby(ctx context.Context, acc *Account, plainPassword st
 	// 应用默认用户策略（包括 MaxParentalRating 等）
 	defaultPolicy := emby.CreateDefaultPolicy(acc.MaxDevices)
 	if err := s.embyClient.UpdateUserPolicy(ctx, embyUser.ID, defaultPolicy); err != nil {
-		logger.WarnKV("failed to set default policy", "username", acc.Username, "emby_user_id", embyUser.ID, "error", err)
+		logger.Warnf("failed to set default policy for %s: %v", acc.Username, err)
 		// 不返回错误，策略可以后续手动设置
 	} else {
-		logger.InfoKV("successfully set default policy", "username", acc.Username, "max_devices", acc.MaxDevices, "parental_rating", defaultPolicy.MaxParentalRating)
+		logger.Infof("default policy set for %s: max_devices=%d", acc.Username, acc.MaxDevices)
 	}
 
 	acc.MarkSynced(embyUser.ID)
@@ -88,7 +88,7 @@ func (s *Service) deleteFromEmby(ctx context.Context, acc *Account) error {
 
 	if err := s.embyClient.DeleteUser(ctx, acc.EmbyUserID); err != nil {
 		if !errors.Is(err, emby.ErrUserNotFound) {
-			logger.ErrorKV("delete from emby failed", "username", acc.Username, "emby_user_id", acc.EmbyUserID, "error", err)
+			logger.Errorf("failed to delete emby user %s: %v", acc.Username, err)
 			return err
 		}
 		// 用户不存在,视为成功
@@ -105,7 +105,7 @@ func (s *Service) updatePasswordInEmby(ctx context.Context, acc *Account, newPas
 
 	if err := s.embyClient.UpdatePassword(ctx, acc.EmbyUserID, newPassword); err != nil {
 		acc.MarkSyncFailed(fmt.Errorf("update password failed: %w", err))
-		logger.ErrorKV("update password in emby failed", "username", acc.Username, "emby_user_id", acc.EmbyUserID, "error", err)
+		logger.Errorf("failed to update emby password for %s: %v", acc.Username, err)
 		return err
 	}
 
@@ -121,7 +121,7 @@ func (s *Service) suspendInEmby(ctx context.Context, acc *Account) error {
 
 	if err := s.embyClient.DisableUser(ctx, acc.EmbyUserID); err != nil {
 		acc.MarkSyncFailed(fmt.Errorf("suspend failed: %w", err))
-		logger.ErrorKV("suspend in emby failed", "username", acc.Username, "emby_user_id", acc.EmbyUserID, "error", err)
+		logger.Errorf("failed to suspend emby user %s: %v", acc.Username, err)
 		return err
 	}
 
@@ -137,7 +137,7 @@ func (s *Service) activateInEmby(ctx context.Context, acc *Account) error {
 
 	if err := s.embyClient.EnableUser(ctx, acc.EmbyUserID); err != nil {
 		acc.MarkSyncFailed(fmt.Errorf("activate failed: %w", err))
-		logger.ErrorKV("activate in emby failed", "username", acc.Username, "emby_user_id", acc.EmbyUserID, "error", err)
+		logger.Errorf("failed to activate emby user %s: %v", acc.Username, err)
 		return err
 	}
 
@@ -193,15 +193,15 @@ func (s *Service) Create(ctx context.Context, username string, userID uint) (*Ac
 	// 同步到 Emby
 	if s.syncOnCreate {
 		if err := s.syncToEmby(ctx, acc, plainPassword); err != nil {
-			logger.WarnKV("account created locally but emby sync failed", "username", acc.Username, "error", err)
+			logger.Warnf("account %s created locally but emby sync failed: %v", acc.Username, err)
 			// 更新同步状态
 			if updateErr := s.store.Update(ctx, acc); updateErr != nil {
-				logger.ErrorKV("failed to update sync status", "username", acc.Username, "error", updateErr)
+				logger.Errorf("failed to update sync status for %s: %v", acc.Username, updateErr)
 			}
 		} else {
 			// 同步成功，更新账号信息
 			if updateErr := s.store.Update(ctx, acc); updateErr != nil {
-				logger.ErrorKV("failed to update emby user id", "username", acc.Username, "error", updateErr)
+				logger.Errorf("failed to update emby user id for %s: %v", acc.Username, updateErr)
 			}
 		}
 	}
@@ -254,15 +254,15 @@ func (s *Service) CreateWithPassword(ctx context.Context, username, password str
 	// 同步到 Emby
 	if s.syncOnCreate {
 		if err := s.syncToEmby(ctx, acc, password); err != nil {
-			logger.WarnKV("account created locally but emby sync failed", "username", acc.Username, "error", err)
+			logger.Warnf("account %s created locally but emby sync failed: %v", acc.Username, err)
 			// 更新同步状态
 			if updateErr := s.store.Update(ctx, acc); updateErr != nil {
-				logger.ErrorKV("failed to update sync status", "username", acc.Username, "error", updateErr)
+				logger.Errorf("failed to update sync status for %s: %v", acc.Username, updateErr)
 			}
 		} else {
 			// 同步成功，更新账号信息
 			if updateErr := s.store.Update(ctx, acc); updateErr != nil {
-				logger.ErrorKV("failed to update emby user id", "username", acc.Username, "error", updateErr)
+				logger.Errorf("failed to update emby user id for %s: %v", acc.Username, updateErr)
 			}
 		}
 	}
@@ -339,7 +339,7 @@ func (s *Service) Delete(ctx context.Context, id uint) error {
 	// 从 Emby 删除
 	if s.syncOnDelete {
 		if err := s.deleteFromEmby(ctx, acc); err != nil {
-			logger.WarnKV("failed to delete from emby", "username", acc.Username, "error", err)
+			logger.Warnf("failed to delete %s from emby: %v", acc.Username, err)
 			// 继续删除本地记录
 		}
 	}
@@ -378,15 +378,15 @@ func (s *Service) ChangePassword(ctx context.Context, id uint, newPassword strin
 	// 同步到 Emby
 	if s.enableSync {
 		if err := s.updatePasswordInEmby(ctx, acc, newPassword); err != nil {
-			logger.WarnKV("password updated locally but emby sync failed", "username", acc.Username, "error", err)
+			logger.Warnf("password updated locally for %s but emby sync failed: %v", acc.Username, err)
 			// 更新同步状态
 			if updateErr := s.store.Update(ctx, acc); updateErr != nil {
-				logger.ErrorKV("failed to update sync status", "username", acc.Username, "error", updateErr)
+				logger.Errorf("failed to update sync status for %s: %v", acc.Username, updateErr)
 			}
 		} else {
 			// 同步成功，更新账号信息
 			if updateErr := s.store.Update(ctx, acc); updateErr != nil {
-				logger.ErrorKV("failed to update sync status", "username", acc.Username, "error", updateErr)
+				logger.Errorf("failed to update sync status for %s: %v", acc.Username, updateErr)
 			}
 		}
 	}
@@ -410,15 +410,15 @@ func (s *Service) Suspend(ctx context.Context, id uint) error {
 	// 同步到 Emby
 	if s.enableSync {
 		if err := s.suspendInEmby(ctx, acc); err != nil {
-			logger.WarnKV("account suspended locally but emby sync failed", "username", acc.Username, "error", err)
+			logger.Warnf("account %s suspended locally but emby sync failed: %v", acc.Username, err)
 			// 更新同步状态
 			if updateErr := s.store.Update(ctx, acc); updateErr != nil {
-				logger.ErrorKV("failed to update sync status", "username", acc.Username, "error", updateErr)
+				logger.Errorf("failed to update sync status for %s: %v", acc.Username, updateErr)
 			}
 		} else {
 			// 同步成功，更新账号信息
 			if updateErr := s.store.Update(ctx, acc); updateErr != nil {
-				logger.ErrorKV("failed to update sync status", "username", acc.Username, "error", updateErr)
+				logger.Errorf("failed to update sync status for %s: %v", acc.Username, updateErr)
 			}
 		}
 	}
@@ -442,15 +442,15 @@ func (s *Service) Activate(ctx context.Context, id uint) error {
 	// 同步到 Emby
 	if s.enableSync {
 		if err := s.activateInEmby(ctx, acc); err != nil {
-			logger.WarnKV("account activated locally but emby sync failed", "username", acc.Username, "error", err)
+			logger.Warnf("account %s activated locally but emby sync failed: %v", acc.Username, err)
 			// 更新同步状态
 			if updateErr := s.store.Update(ctx, acc); updateErr != nil {
-				logger.ErrorKV("failed to update sync status", "username", acc.Username, "error", updateErr)
+				logger.Errorf("failed to update sync status for %s: %v", acc.Username, updateErr)
 			}
 		} else {
 			// 同步成功，更新账号信息
 			if updateErr := s.store.Update(ctx, acc); updateErr != nil {
-				logger.ErrorKV("failed to update sync status", "username", acc.Username, "error", updateErr)
+				logger.Errorf("failed to update sync status for %s: %v", acc.Username, updateErr)
 			}
 		}
 	}

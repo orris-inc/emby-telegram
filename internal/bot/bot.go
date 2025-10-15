@@ -55,10 +55,10 @@ func New(token string, adminIDs []int64, accountSvc *account.Service, userSvc *u
 
 	// 设置 Bot 命令菜单
 	if err := b.setupBotCommands(); err != nil {
-		logger.WarnKV("failed to setup bot commands", "error", err)
+		logger.Warnf("failed to setup bot commands: %v", err)
 	}
 
-	logger.InfoKV("bot authorized", "username", "@"+api.Self.UserName)
+	logger.Infof("bot authorized: @%s", api.Self.UserName)
 	return b, nil
 }
 
@@ -103,7 +103,7 @@ func (b *Bot) handleUpdate(ctx context.Context, msg *tgbotapi.Message) {
 	// 确保用户存在
 	currentUser, err := b.userService.GetOrCreate(ctx, msg.From)
 	if err != nil {
-		logger.ErrorKV("failed to get or create user", "error", err)
+		logger.Errorf("failed to get or create user: %v", err)
 		b.reply(msg.Chat.ID, "系统错误，请稍后再试")
 		return
 	}
@@ -141,7 +141,7 @@ func (b *Bot) handleCommand(ctx context.Context, msg *tgbotapi.Message, currentU
 	cmd := msg.Command()
 	args := parseArgs(msg.CommandArguments())
 
-	logger.InfoKV("user executed command", "user", currentUser.DisplayName(), "command", cmd, "args", args)
+	logger.Infof("user executed command: %s, command: %s", currentUser.DisplayName(), cmd)
 
 	// 查找命令处理器
 	handler, ok := b.handlers[cmd]
@@ -153,7 +153,7 @@ func (b *Bot) handleCommand(ctx context.Context, msg *tgbotapi.Message, currentU
 	// 执行命令
 	reply, err := handler(ctx, msg, args)
 	if err != nil {
-		logger.ErrorKV("command execution error", "command", cmd, "error", err)
+		logger.Errorf("command execution failed: %s, error: %v", cmd, err)
 		b.reply(msg.Chat.ID, fmt.Sprintf("❌ 错误: %v", err))
 		return
 	}
@@ -167,7 +167,7 @@ func (b *Bot) reply(chatID int64, text string) {
 	msg.ParseMode = "HTML"
 
 	if _, err := b.api.Send(msg); err != nil {
-		logger.ErrorKV("failed to send message", "error", err)
+		logger.Errorf("failed to send message: %v", err)
 	}
 }
 

@@ -25,31 +25,28 @@ func (c *Client) CreateUser(ctx context.Context, name, password string) (*EmbyUs
 		return nil, fmt.Errorf("create emby user: %w", err)
 	}
 
-	logger.InfoKV("emby user created successfully", "name", user.Name, "id", user.ID, "has_password", user.HasPassword, "has_configured_password", user.HasConfiguredPassword)
+	logger.Infof("emby user created: %s (id: %s)", user.Name, user.ID)
 
 	// 检查密码是否已成功设置
 	if password != "" && !user.HasPassword && !user.HasConfiguredPassword {
 		// 如果密码未在创建时设置成功，使用备用方法
-		logger.WarnKV("password not set on creation, trying fallback method", "user", user.Name, "user_id", user.ID)
+		logger.Warnf("password not set on creation, trying fallback method for user: %s", user.Name)
 		if err := c.UpdatePassword(ctx, user.ID, password); err != nil {
-			logger.ErrorKV("failed to set password", "error", err)
+			logger.Errorf("failed to set password for user %s: %v", user.Name, err)
 			// 如果设置密码失败，尝试删除已创建的用户
 			_ = c.DeleteUser(ctx, user.ID)
 			return nil, fmt.Errorf("set user password: %w", err)
 		}
-		logger.InfoKV("password set successfully", "user", user.Name)
+		logger.Infof("password set successfully for user: %s", user.Name)
 
 		// 重新获取用户信息以验证密码是否已设置
 		updatedUser, err := c.GetUser(ctx, user.ID)
 		if err != nil {
-			logger.WarnKV("failed to re-fetch user info for verification", "error", err)
+			logger.Warnf("failed to re-fetch user info for verification: %v", err)
 		} else {
-			logger.InfoKV("user status after password set", "name", updatedUser.Name, "has_password", updatedUser.HasPassword, "has_configured_password", updatedUser.HasConfiguredPassword)
 			// 更新用户信息
 			user = *updatedUser
 		}
-	} else if password != "" {
-		logger.InfoKV("password set successfully on creation", "user", user.Name)
 	}
 
 	return &user, nil
@@ -99,14 +96,10 @@ func (c *Client) UpdatePassword(ctx context.Context, userID, newPassword string)
 
 	path := fmt.Sprintf("/Users/%s/Password", userID)
 
-	logger.InfoKV("setting user password (form)", "user_id", userID, "password_length", len(newPassword))
-
 	// 使用 form-urlencoded 格式发送请求
 	if err := c.doFormRequest(ctx, http.MethodPost, path, formData, nil); err != nil {
 		return fmt.Errorf("update emby user password: %w", err)
 	}
-
-	logger.InfoKV("password API call successful", "user_id", userID)
 
 	return nil
 }
