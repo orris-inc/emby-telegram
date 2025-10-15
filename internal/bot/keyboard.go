@@ -28,9 +28,15 @@ const (
 	// 管理员菜单
 	CallbackAdminMenu = "admin:menu"
 	CallbackAdminUsers = "admin:users"       // admin:users:page
+	CallbackAdminUserDetail = "admin:user"   // admin:user:userID:page
 	CallbackAdminAccounts = "admin:accounts" // admin:accounts:page
+	CallbackAdminAccountDetail = "admin:account" // admin:account:accountID
+	CallbackAdminAccountSuspend = "admin:suspend" // admin:suspend:accountID
+	CallbackAdminAccountActivate = "admin:activate" // admin:activate:accountID
 	CallbackAdminStats = "admin:stats"
 	CallbackAdminEmby = "admin:emby"
+	CallbackAdminPlayingStats = "admin:playing"
+	CallbackAdminUpdatePolicies = "admin:updatepolicies"
 
 	// 通用操作
 	CallbackConfirm = "confirm" // confirm:action:param
@@ -79,6 +85,21 @@ func AdminMenuKeyboard() tgbotapi.InlineKeyboardMarkup {
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("⬅️ 返回主菜单", CallbackMainMenu),
+		),
+	)
+}
+
+// EmbyMenuKeyboard Emby 管理子菜单键盘
+func EmbyMenuKeyboard() tgbotapi.InlineKeyboardMarkup {
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("📊 播放统计", CallbackAdminPlayingStats),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🔄 批量更新策略", CallbackAdminUpdatePolicies),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("⬅️ 返回管理员菜单", CallbackAdminMenu),
 		),
 	)
 }
@@ -240,4 +261,37 @@ func MainReplyKeyboard(isAdmin bool) tgbotapi.ReplyKeyboardMarkup {
 // RemoveReplyKeyboard 移除回复键盘
 func RemoveReplyKeyboard() tgbotapi.ReplyKeyboardRemove {
 	return tgbotapi.NewRemoveKeyboard(true)
+}
+
+// AdminAccountActionsKeyboard 管理员账号操作键盘
+func AdminAccountActionsKeyboard(accountID uint, status string, page int) tgbotapi.InlineKeyboardMarkup {
+	rows := [][]tgbotapi.InlineKeyboardButton{
+		{
+			tgbotapi.NewInlineKeyboardButtonData("🔄 续期", CallbackAccountRenew+":"+uintToStr(accountID)),
+			tgbotapi.NewInlineKeyboardButtonData("🔑 改密", CallbackAccountPassword+":"+uintToStr(accountID)),
+		},
+		{
+			tgbotapi.NewInlineKeyboardButtonData("🔞 设置评级", CallbackAccountRating+":"+uintToStr(accountID)),
+		},
+	}
+
+	if status == "active" {
+		rows = append(rows, []tgbotapi.InlineKeyboardButton{
+			tgbotapi.NewInlineKeyboardButtonData("⏸️ 停用", CallbackAdminAccountSuspend+":"+uintToStr(accountID)),
+		})
+	} else if status == "suspended" {
+		rows = append(rows, []tgbotapi.InlineKeyboardButton{
+			tgbotapi.NewInlineKeyboardButtonData("✅ 激活", CallbackAdminAccountActivate+":"+uintToStr(accountID)),
+		})
+	}
+
+	rows = append(rows, []tgbotapi.InlineKeyboardButton{
+		tgbotapi.NewInlineKeyboardButtonData("❌ 删除账号", CallbackAccountDelete+":"+uintToStr(accountID)),
+	})
+
+	rows = append(rows, []tgbotapi.InlineKeyboardButton{
+		tgbotapi.NewInlineKeyboardButtonData("⬅️ 返回列表", CallbackAdminAccounts+":"+intToStr(page)),
+	})
+
+	return tgbotapi.NewInlineKeyboardMarkup(rows...)
 }

@@ -306,6 +306,24 @@ func (s *Service) ListAll(ctx context.Context, offset, limit int) ([]*Account, e
 	return accs, nil
 }
 
+// ListAllWithUser 列出所有账号及关联用户信息(分页)
+func (s *Service) ListAllWithUser(ctx context.Context, offset, limit int) ([]*AccountWithUser, error) {
+	accs, err := s.store.ListAllWithUser(ctx, offset, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list all accounts with user: %w", err)
+	}
+	return accs, nil
+}
+
+// GetWithUser 根据 ID 获取账号及用户信息
+func (s *Service) GetWithUser(ctx context.Context, id uint) (*AccountWithUser, error) {
+	acc, err := s.store.GetWithUser(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return acc, nil
+}
+
 // Renew 续期账号
 func (s *Service) Renew(ctx context.Context, id uint, days int) error {
 	// 验证天数

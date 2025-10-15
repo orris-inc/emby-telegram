@@ -23,8 +23,8 @@ func (b *Bot) registerHandlers() {
 	b.handlers["users"] = b.handleListUsers
 	b.handlers["accounts"] = b.handleListAccounts
 	b.handlers["deleteaccount"] = b.handleDeleteAccount
-	b.handlers["suspend"] = b.handleSuspendAccount
-	b.handlers["activate"] = b.handleActivateAccount
+	b.handlers["suspend"] = b.handleSuspendAccountCmd
+	b.handlers["activate"] = b.handleActivateAccountCmd
 	b.handlers["setrole"] = b.handleSetRole
 	b.handlers["blockuser"] = b.handleBlockUser
 	b.handlers["unblockuser"] = b.handleUnblockUser

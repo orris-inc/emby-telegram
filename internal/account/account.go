@@ -46,6 +46,22 @@ func (Account) TableName() string {
 	return "accounts"
 }
 
+// AccountWithUser 账号及关联用户信息
+type AccountWithUser struct {
+	Account
+	OwnerUsername  string
+	OwnerFirstName string
+	OwnerTelegramID int64
+}
+
+// GetOwnerDisplayName 获取所有者显示名称
+func (a *AccountWithUser) GetOwnerDisplayName() string {
+	if a.OwnerUsername != "" {
+		return "@" + a.OwnerUsername
+	}
+	return a.OwnerFirstName
+}
+
 // IsActive 检查账号是否激活
 func (a *Account) IsActive() bool {
 	return a.Status == StatusActive

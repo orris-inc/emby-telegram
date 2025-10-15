@@ -187,8 +187,8 @@ func (b *Bot) handleDeleteAccount(ctx context.Context, msg *tgbotapi.Message, ar
 	return fmt.Sprintf("✅ 账号 <b>%s</b> 已删除", acc.Username), nil
 }
 
-// handleSuspendAccount 处理 /suspend 命令
-func (b *Bot) handleSuspendAccount(ctx context.Context, msg *tgbotapi.Message, args []string) (string, error) {
+// handleSuspendAccountCmd 处理 /suspend 命令
+func (b *Bot) handleSuspendAccountCmd(ctx context.Context, msg *tgbotapi.Message, args []string) (string, error) {
 	if err := b.requireAdmin(msg.From.ID); err != nil {
 		return "❌ 此命令需要管理员权限", nil
 	}
@@ -211,8 +211,8 @@ func (b *Bot) handleSuspendAccount(ctx context.Context, msg *tgbotapi.Message, a
 	return fmt.Sprintf("⏸️ 账号 <b>%s</b> 已暂停", acc.Username), nil
 }
 
-// handleActivateAccount 处理 /activate 命令
-func (b *Bot) handleActivateAccount(ctx context.Context, msg *tgbotapi.Message, args []string) (string, error) {
+// handleActivateAccountCmd 处理 /activate 命令
+func (b *Bot) handleActivateAccountCmd(ctx context.Context, msg *tgbotapi.Message, args []string) (string, error) {
 	if err := b.requireAdmin(msg.From.ID); err != nil {
 		return "❌ 此命令需要管理员权限", nil
 	}

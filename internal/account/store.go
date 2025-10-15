@@ -21,6 +21,12 @@ type Store interface {
 	// ListAll 列出所有账号(分页)
 	ListAll(ctx context.Context, offset, limit int) ([]*Account, error)
 
+	// ListAllWithUser 列出所有账号及关联用户信息(分页)
+	ListAllWithUser(ctx context.Context, offset, limit int) ([]*AccountWithUser, error)
+
+	// GetWithUser 根据 ID 获取账号及用户信息
+	GetWithUser(ctx context.Context, id uint) (*AccountWithUser, error)
+
 	// Update 更新账号
 	Update(ctx context.Context, acc *Account) error
 

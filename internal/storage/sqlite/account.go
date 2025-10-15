@@ -80,6 +80,42 @@ func (s *AccountStore) ListAll(ctx context.Context, offset, limit int) ([]*accou
 	return accounts, nil
 }
 
+// ListAllWithUser 列出所有账号及关联用户信息(分页)
+func (s *AccountStore) ListAllWithUser(ctx context.Context, offset, limit int) ([]*account.AccountWithUser, error) {
+	var results []*account.AccountWithUser
+	query := s.db.WithContext(ctx).
+		Table("accounts").
+		Select("accounts.*, users.username as owner_username, users.first_name as owner_first_name, users.telegram_id as owner_telegram_id").
+		Joins("LEFT JOIN users ON users.id = accounts.user_id").
+		Order("accounts.created_at DESC")
+
+	if limit > 0 {
+		query = query.Limit(limit).Offset(offset)
+	}
+
+	if err := query.Scan(&results).Error; err != nil {
+		return nil, fmt.Errorf("list all accounts with user: %w", err)
+	}
+	return results, nil
+}
+
+// GetWithUser 根据 ID 获取账号及用户信息
+func (s *AccountStore) GetWithUser(ctx context.Context, id uint) (*account.AccountWithUser, error) {
+	var result account.AccountWithUser
+	if err := s.db.WithContext(ctx).
+		Table("accounts").
+		Select("accounts.*, users.username as owner_username, users.first_name as owner_first_name, users.telegram_id as owner_telegram_id").
+		Joins("LEFT JOIN users ON users.id = accounts.user_id").
+		Where("accounts.id = ?", id).
+		First(&result).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, account.ErrNotFound
+		}
+		return nil, fmt.Errorf("get account with user: %w", err)
+	}
+	return &result, nil
+}
+
 // Update 更新账号
 func (s *AccountStore) Update(ctx context.Context, acc *account.Account) error {
 	if err := s.db.WithContext(ctx).Save(acc).Error; err != nil {
