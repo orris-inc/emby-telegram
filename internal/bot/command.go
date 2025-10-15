@@ -30,6 +30,7 @@ func (b *Bot) registerHandlers() {
 	b.handlers["unblockuser"] = b.handleUnblockUser
 	b.handlers["stats"] = b.handleStats
 	b.handlers["playingstats"] = b.handlePlayingStats
+	b.handlers["updatepolicies"] = b.handleUpdatePolicies
 
 	// Emby 管理命令
 	b.handlers["checkemby"] = b.handleCheckEmby

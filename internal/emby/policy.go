@@ -110,3 +110,30 @@ func CreateDefaultPolicy(maxDevices int) *UserPolicy {
 		EnableAllDevices:                 true,
 	}
 }
+
+func (c *Client) BatchUpdateNonAdminPolicies(ctx context.Context) (int, int, error) {
+	users, err := c.ListUsers(ctx)
+	if err != nil {
+		return 0, 0, fmt.Errorf("get all users: %w", err)
+	}
+
+	updated := 0
+	failed := 0
+
+	for _, user := range users {
+		if user.Policy.IsAdministrator {
+			continue
+		}
+
+		policy := CreateDefaultPolicy(int(user.Policy.SimultaneousStreamLimit))
+		policy.MaxParentalRating = user.Policy.MaxParentalRating
+
+		if err := c.UpdateUserPolicy(ctx, user.ID, policy); err != nil {
+			failed++
+			continue
+		}
+		updated++
+	}
+
+	return updated, failed, nil
+}

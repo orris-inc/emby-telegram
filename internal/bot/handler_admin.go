@@ -40,6 +40,7 @@ func (b *Bot) handleAdmin(ctx context.Context, msg *tgbotapi.Message, args []str
 /syncaccount &lt;用户名&gt; &lt;密码&gt; - 手动同步账号到 Emby
 /embyusers - 列出 Emby 服务器上的所有用户
 /setdevicelimit &lt;用户名&gt; &lt;设备数&gt; - 设置账号设备限制
+/updatepolicies - 批量更新所有非管理员用户策略
 
 <b>统计信息:</b>
 /stats - 查看系统统计
@@ -426,4 +427,28 @@ func (b *Bot) handlePlayingStats(ctx context.Context, msg *tgbotapi.Message, arg
 	result += fmt.Sprintf("\n📊 总会话数: %d", len(sessions))
 
 	return result, nil
+}
+
+func (b *Bot) handleUpdatePolicies(ctx context.Context, msg *tgbotapi.Message, args []string) (string, error) {
+	if err := b.requireAdmin(msg.From.ID); err != nil {
+		return "❌ 此命令需要管理员权限", nil
+	}
+
+	if b.embyClient == nil {
+		return "❌ Emby 同步未启用", nil
+	}
+
+	updated, failed, err := b.embyClient.BatchUpdateNonAdminPolicies(ctx)
+	if err != nil {
+		logger.Errorf("failed to batch update policies: %v", err)
+		return "", fmt.Errorf("批量更新策略失败: %w", err)
+	}
+
+	return fmt.Sprintf(`✅ <b>批量更新用户策略完成</b>
+
+• 成功更新: %d 个用户
+• 失败: %d 个用户
+• 已跳过管理员账号
+
+所有非管理员用户已应用默认安全策略。`, updated, failed), nil
 }
