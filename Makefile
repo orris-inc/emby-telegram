@@ -1,10 +1,13 @@
-.PHONY: help build run test clean dev fmt vet lint
+.PHONY: help build run test clean dev fmt vet lint build-linux
 
 # 变量定义
 APP_NAME := emby-bot
 BUILD_DIR := bin
 MAIN_PATH := cmd/server/main.go
 DATA_DIR := data
+VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+BUILD_TIME := $(shell date -u '+%Y-%m-%d_%H:%M:%S')
+LDFLAGS := -ldflags "-s -w -X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME)"
 
 help: ## 显示帮助信息
 	@echo "Emby Telegram Bot - 可用命令:"
@@ -13,8 +16,20 @@ help: ## 显示帮助信息
 build: ## 编译项目
 	@echo "编译项目..."
 	@mkdir -p $(BUILD_DIR)
-	go build -o $(BUILD_DIR)/$(APP_NAME) $(MAIN_PATH)
+	go build $(LDFLAGS) -o $(BUILD_DIR)/$(APP_NAME) $(MAIN_PATH)
 	@echo "✓ 编译完成: $(BUILD_DIR)/$(APP_NAME)"
+
+build-linux: ## 编译 Linux AMD64 版本 (使用 Docker)
+	@echo "编译 Linux AMD64 版本..."
+	@mkdir -p $(BUILD_DIR)
+	@echo "使用 Docker 编译 (支持 CGO)..."
+	docker run --rm \
+		-v $(PWD):/workspace \
+		-w /workspace \
+		golang:1.24-alpine \
+		sh -c "apk add --no-cache gcc musl-dev && \
+		       go build $(LDFLAGS) -o $(BUILD_DIR)/$(APP_NAME)-linux-amd64 $(MAIN_PATH)"
+	@echo "✓ 编译完成: $(BUILD_DIR)/$(APP_NAME)-linux-amd64"
 
 run: ## 运行项目
 	@echo "启动 Bot..."

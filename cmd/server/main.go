@@ -14,7 +14,7 @@ import (
 	"emby-telegram/internal/config"
 	"emby-telegram/internal/emby"
 	"emby-telegram/internal/logger"
-	"emby-telegram/internal/storage/sqlite"
+	"emby-telegram/internal/storage"
 	"emby-telegram/internal/user"
 )
 
@@ -35,22 +35,12 @@ func main() {
 	logger.Infof("version: %s", cfg.App.Version)
 	logger.Infof("debug mode: %v", cfg.App.Debug)
 
-	// 初始化数据库
-	db, err := sqlite.Open(cfg.Database.DSN, cfg.App.Debug)
+	stores, err := storage.NewStores(cfg.Database.Driver, cfg.Database.DSN, cfg.App.Debug)
 	if err != nil {
 		logger.Fatalf("failed to initialize database: %v", err)
 	}
-	logger.Info("✓ database connected")
-
-	// 自动迁移
-	if err := sqlite.AutoMigrate(db); err != nil {
-		logger.Fatalf("failed to migrate database: %v", err)
-	}
+	logger.Infof("✓ database connected (driver: %s)", cfg.Database.Driver)
 	logger.Info("✓ database migrated")
-
-	// 创建存储层
-	userStore := sqlite.NewUserStore(db)
-	accountStore := sqlite.NewAccountStore(db)
 
 	// 初始化 Emby Client
 	var embyClient *emby.Client
@@ -76,10 +66,9 @@ func main() {
 		logger.Info("✓ emby sync disabled, running in offline mode")
 	}
 
-	// 创建服务层
-	userService := user.NewService(userStore)
+	userService := user.NewService(stores.UserStore)
 	accountService := account.NewService(
-		accountStore,
+		stores.AccountStore,
 		embyClient,
 		cfg.Account.UsernamePrefix,
 		cfg.Account.DefaultExpireDays,
@@ -130,12 +119,10 @@ func main() {
 		logger.Info("context canceled")
 	}
 
-	// 优雅关闭
 	logger.Info("shutting down bot...")
 	telegramBot.Stop()
 
-	// 关闭数据库连接
-	if err := sqlite.Close(db); err != nil {
+	if err := stores.Close(); err != nil {
 		logger.Errorf("failed to close database connection: %v", err)
 	} else {
 		logger.Info("✓ database connection closed")
