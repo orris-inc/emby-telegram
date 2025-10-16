@@ -19,16 +19,10 @@ build: ## 编译项目
 	go build $(LDFLAGS) -o $(BUILD_DIR)/$(APP_NAME) $(MAIN_PATH)
 	@echo "✓ 编译完成: $(BUILD_DIR)/$(APP_NAME)"
 
-build-linux: ## 编译 Linux AMD64 版本 (使用 Docker)
+build-linux: ## 编译 Linux AMD64 版本
 	@echo "编译 Linux AMD64 版本..."
 	@mkdir -p $(BUILD_DIR)
-	@echo "使用 Docker 编译 (支持 CGO)..."
-	docker run --rm \
-		-v $(PWD):/workspace \
-		-w /workspace \
-		golang:1.24-alpine \
-		sh -c "apk add --no-cache gcc musl-dev && \
-		       go build $(LDFLAGS) -o $(BUILD_DIR)/$(APP_NAME)-linux-amd64 $(MAIN_PATH)"
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(APP_NAME)-linux-amd64 $(MAIN_PATH)
 	@echo "✓ 编译完成: $(BUILD_DIR)/$(APP_NAME)-linux-amd64"
 
 run: ## 运行项目

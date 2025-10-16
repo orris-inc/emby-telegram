@@ -85,31 +85,6 @@ install_binary() {
     chmod +x $INSTALL_DIR/bin/$APP_NAME
 }
 
-# 运行数据库迁移
-run_migration() {
-    if [ ! -f "/etc/$SERVICE_NAME/config.yaml" ]; then
-        print_warn "配置文件不存在，跳过数据库迁移"
-        return 0
-    fi
-
-    # 检测数据库驱动
-    DB_DRIVER=$(grep -E "^[[:space:]]*driver:" /etc/$SERVICE_NAME/config.yaml | awk '{print $2}' | tr -d '"' || echo "sqlite")
-
-    if [ "$DB_DRIVER" = "mysql" ] || [ "$DB_DRIVER" = "postgres" ] || [ "$DB_DRIVER" = "pg" ]; then
-        print_info "检测到 $DB_DRIVER 数据库，执行迁移..."
-
-        # 临时以 root 权限运行迁移（因为可能需要网络访问）
-        if $INSTALL_DIR/bin/$APP_NAME migrate -config /etc/$SERVICE_NAME/config.yaml 2>&1 | tee /tmp/${SERVICE_NAME}_migrate.log; then
-            print_info "✓ 数据库迁移完成"
-        else
-            print_warn "数据库迁移失败，请检查日志: /tmp/${SERVICE_NAME}_migrate.log"
-            print_warn "服务启动时会自动尝试迁移"
-        fi
-    else
-        print_info "SQLite 数据库将在服务启动时自动初始化"
-    fi
-}
-
 # 复制配置文件
 install_config() {
     if [ -f "configs/config.example.yaml" ]; then
@@ -131,31 +106,16 @@ create_systemd_service() {
 [Unit]
 Description=Emby Telegram Bot Service
 After=network.target
-Documentation=https://github.com/yourusername/emby-telegram
 
 [Service]
 Type=simple
 User=$SERVICE_USER
 Group=$SERVICE_USER
-WorkingDirectory=$INSTALL_DIR
-ExecStart=$INSTALL_DIR/bin/$APP_NAME -config /etc/$SERVICE_NAME/config.yaml
-Restart=always
-RestartSec=10
-
-# 安全设置
-NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths=$INSTALL_DIR/data $INSTALL_DIR/logs
-
-# 日志设置
-StandardOutput=journal
-StandardError=journal
-SyslogIdentifier=$SERVICE_NAME
-
-# 资源限制
-LimitNOFILE=65536
+WorkingDirectory=$INSTALL_DIR/bin
+ExecStart=$INSTALL_DIR/bin/$APP_NAME
+ExecReload=/bin/kill -HUP \$MAINPID
+Restart=on-failure
+RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
@@ -277,7 +237,6 @@ install() {
     install_config
     create_systemd_service
     set_permissions
-    run_migration
 
     echo ""
     print_info "安装完成！"

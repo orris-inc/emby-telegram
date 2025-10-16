@@ -75,6 +75,7 @@ func Load() (*Config, error) {
 	// 配置文件
 	v.SetConfigName("config")
 	v.SetConfigType("yaml")
+	v.AddConfigPath("/etc/emby-telegram")
 	v.AddConfigPath("./configs")
 	v.AddConfigPath(".")
 
