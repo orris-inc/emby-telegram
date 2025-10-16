@@ -217,13 +217,13 @@ emby-telegram/
 /create john
 
 # 查看账号信息
-/info emby_john
+/info john
 
 # 续期30天
-/renew emby_john 30
+/renew john 30
 
 # 修改密码
-/changepassword emby_john newpassword123
+/changepassword john newpassword123
 ```
 
 ## 配置说明
@@ -249,8 +249,10 @@ database:
 account:
   default_expire_days: 30
   default_max_devices: 3
-  username_prefix: "emby_"
+  username_prefix: ""
   password_length: 12
+  max_accounts_per_user: 3
+  max_accounts_per_admin: -1
 
 emby:
   server_url: "http://localhost:8096"
@@ -275,6 +277,17 @@ log:
 - `DB_DSN` - 数据库连接字符串（可选）
 - `APP_ENV` - 应用环境（可选）
 - `LOG_LEVEL` - 日志级别（可选）
+
+### 账号配置说明
+
+- `default_expire_days`: 默认账号有效期（天，默认 30）
+- `default_max_devices`: 默认最大设备数（默认 3）
+- `username_prefix`: 账号用户名前缀（留空则不添加前缀）
+- `password_length`: 自动生成密码长度（默认 12）
+- `max_accounts_per_user`: 普通用户最大账号数量（默认 3）
+- `max_accounts_per_admin`: 管理员最大账号数量（默认 -1，表示无限制）
+
+**账号限额**: 普通用户创建账号时会检查数量限制，超过限额将无法继续创建。管理员默认无限制（-1），可根据需要调整。
 
 ### Emby 配置说明
 

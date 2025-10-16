@@ -13,32 +13,76 @@ import (
 	"emby-telegram/pkg/validator"
 )
 
+// UserGetter 用户查询接口
+type UserGetter interface {
+	Get(ctx context.Context, id uint) (User, error)
+}
+
+// User 用户信息
+type User struct {
+	ID      uint
+	IsAdmin bool
+}
+
 // Service 账号业务服务
 type Service struct {
-	store          Store
-	embyClient     *emby.Client
-	usernamePrefix string
-	defaultExpire  int
-	defaultDevices int
-	passwordLength int
-	enableSync     bool
-	syncOnCreate   bool
-	syncOnDelete   bool
+	store               Store
+	userGetter          UserGetter
+	embyClient          *emby.Client
+	usernamePrefix      string
+	defaultExpire       int
+	defaultDevices      int
+	passwordLength      int
+	maxAccountsPerUser  int
+	maxAccountsPerAdmin int
+	enableSync          bool
+	syncOnCreate        bool
+	syncOnDelete        bool
 }
 
 // NewService 创建账号服务实例
-func NewService(store Store, embyClient *emby.Client, usernamePrefix string, defaultExpire, defaultDevices, passwordLength int, enableSync, syncOnCreate, syncOnDelete bool) *Service {
+func NewService(store Store, userGetter UserGetter, embyClient *emby.Client, usernamePrefix string, defaultExpire, defaultDevices, passwordLength, maxAccountsPerUser, maxAccountsPerAdmin int, enableSync, syncOnCreate, syncOnDelete bool) *Service {
 	return &Service{
-		store:          store,
-		embyClient:     embyClient,
-		usernamePrefix: usernamePrefix,
-		defaultExpire:  defaultExpire,
-		defaultDevices: defaultDevices,
-		passwordLength: passwordLength,
-		enableSync:     enableSync,
-		syncOnCreate:   syncOnCreate,
-		syncOnDelete:   syncOnDelete,
+		store:               store,
+		userGetter:          userGetter,
+		embyClient:          embyClient,
+		usernamePrefix:      usernamePrefix,
+		defaultExpire:       defaultExpire,
+		defaultDevices:      defaultDevices,
+		passwordLength:      passwordLength,
+		maxAccountsPerUser:  maxAccountsPerUser,
+		maxAccountsPerAdmin: maxAccountsPerAdmin,
+		enableSync:          enableSync,
+		syncOnCreate:        syncOnCreate,
+		syncOnDelete:        syncOnDelete,
 	}
+}
+
+// checkAccountLimit 检查账号数量限制
+func (s *Service) checkAccountLimit(ctx context.Context, userID uint) error {
+	user, err := s.userGetter.Get(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("get user info: %w", err)
+	}
+
+	currentCount, err := s.store.CountByUser(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("count user accounts: %w", err)
+	}
+
+	limit := s.maxAccountsPerUser
+	if user.IsAdmin {
+		limit = s.maxAccountsPerAdmin
+		if limit == -1 {
+			return nil
+		}
+	}
+
+	if int(currentCount) >= limit {
+		return AccountLimitExceededError(int(currentCount), limit)
+	}
+
+	return nil
 }
 
 // syncToEmby 同步账号到 Emby
@@ -161,6 +205,11 @@ func (s *Service) Create(ctx context.Context, username string, userID uint) (*Ac
 		return nil, "", AlreadyExistsError(username)
 	}
 
+	// 检查账号数量限制
+	if err := s.checkAccountLimit(ctx, userID); err != nil {
+		return nil, "", err
+	}
+
 	// 生成随机密码
 	plainPassword, err := crypto.GeneratePassword(s.passwordLength)
 	if err != nil {
@@ -226,6 +275,11 @@ func (s *Service) CreateWithPassword(ctx context.Context, username, password str
 	// 检查是否已存在
 	if _, err := s.store.GetByUsername(ctx, username); err == nil {
 		return nil, AlreadyExistsError(username)
+	}
+
+	// 检查账号数量限制
+	if err := s.checkAccountLimit(ctx, userID); err != nil {
+		return nil, err
 	}
 
 	// 加密密码

@@ -18,6 +18,22 @@ import (
 	"emby-telegram/internal/user"
 )
 
+// userGetterAdapter adapts user.Service to account.UserGetter interface
+type userGetterAdapter struct {
+	userService *user.Service
+}
+
+func (a *userGetterAdapter) Get(ctx context.Context, id uint) (account.User, error) {
+	u, err := a.userService.Get(ctx, id)
+	if err != nil {
+		return account.User{}, err
+	}
+	return account.User{
+		ID:      u.ID,
+		IsAdmin: u.IsAdmin(),
+	}, nil
+}
+
 func main() {
 	// 加载配置
 	cfg, err := config.Load()
@@ -67,13 +83,20 @@ func main() {
 	}
 
 	userService := user.NewService(stores.UserStore)
+
+	// 创建 UserGetter 适配器
+	userGetter := &userGetterAdapter{userService: userService}
+
 	accountService := account.NewService(
 		stores.AccountStore,
+		userGetter,
 		embyClient,
 		cfg.Account.UsernamePrefix,
 		cfg.Account.DefaultExpireDays,
 		cfg.Account.DefaultMaxDevices,
 		cfg.Account.PasswordLength,
+		cfg.Account.MaxAccountsPerUser,
+		cfg.Account.MaxAccountsPerAdmin,
 		cfg.Emby.EnableSync,
 		cfg.Emby.SyncOnCreate,
 		cfg.Emby.SyncOnDelete,

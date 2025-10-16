@@ -3,6 +3,7 @@ package bot
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -10,6 +11,7 @@ import (
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
+	"emby-telegram/internal/account"
 	"emby-telegram/internal/user"
 	"emby-telegram/pkg/timeutil"
 )
@@ -61,7 +63,11 @@ func (b *Bot) handleUsernameInput(ctx context.Context, msg *tgbotapi.Message, cu
 	// 创建账号
 	acc, plainPassword, err := b.accountService.Create(ctx, username, currentUser.ID)
 	if err != nil {
-		b.reply(msg.Chat.ID, fmt.Sprintf("❌ 创建账号失败: %v", err))
+		errMsg := fmt.Sprintf("❌ 创建账号失败: %v", err)
+		if errors.Is(err, account.ErrAccountLimitExceeded) {
+			errMsg = fmt.Sprintf("❌ %v\n\n您已达到账号数量上限，无法继续创建。", err)
+		}
+		b.reply(msg.Chat.ID, errMsg)
 		b.stateMachine.ClearState(currentUser.TelegramID)
 		return
 	}

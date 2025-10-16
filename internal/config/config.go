@@ -41,10 +41,12 @@ type DatabaseConfig struct {
 
 // AccountConfig 账号配置
 type AccountConfig struct {
-	DefaultExpireDays int    `mapstructure:"default_expire_days"`
-	DefaultMaxDevices int    `mapstructure:"default_max_devices"`
-	UsernamePrefix    string `mapstructure:"username_prefix"`
-	PasswordLength    int    `mapstructure:"password_length"`
+	DefaultExpireDays  int    `mapstructure:"default_expire_days"`
+	DefaultMaxDevices  int    `mapstructure:"default_max_devices"`
+	UsernamePrefix     string `mapstructure:"username_prefix"`
+	PasswordLength     int    `mapstructure:"password_length"`
+	MaxAccountsPerUser int    `mapstructure:"max_accounts_per_user"`
+	MaxAccountsPerAdmin int   `mapstructure:"max_accounts_per_admin"`
 }
 
 // EmbyConfig Emby 服务器配置
@@ -141,8 +143,10 @@ func setDefaults(v *viper.Viper) {
 	// Account 默认值
 	v.SetDefault("account.default_expire_days", 30)
 	v.SetDefault("account.default_max_devices", 3)
-	v.SetDefault("account.username_prefix", "emby_")
+	v.SetDefault("account.username_prefix", "")
 	v.SetDefault("account.password_length", 12)
+	v.SetDefault("account.max_accounts_per_user", 3)
+	v.SetDefault("account.max_accounts_per_admin", -1)
 
 	// Emby 默认值
 	v.SetDefault("emby.server_url", "http://localhost:8096")

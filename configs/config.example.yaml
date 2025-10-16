@@ -30,10 +30,14 @@ account:
   default_expire_days: 30
   # 默认最大设备数
   default_max_devices: 3
-  # 账号用户名前缀
-  username_prefix: "emby_"
+  # 账号用户名前缀（留空则不添加前缀）
+  username_prefix: ""
   # 自动生成密码长度
   password_length: 12
+  # 普通用户最大账号数量
+  max_accounts_per_user: 3
+  # 管理员最大账号数量 (-1 表示无限制)
+  max_accounts_per_admin: -1
 
 emby:
   # Emby 服务器地址

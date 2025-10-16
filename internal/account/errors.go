@@ -25,6 +25,9 @@ var (
 
 	// ErrUnauthorized 未授权操作
 	ErrUnauthorized = errors.New("unauthorized operation")
+
+	// ErrAccountLimitExceeded 账号数量超过限制
+	ErrAccountLimitExceeded = errors.New("account limit exceeded")
 )
 
 // NotFoundError 创建账号不存在错误
@@ -55,4 +58,9 @@ func SuspendedError(username string) error {
 // UnauthorizedError 创建未授权错误
 func UnauthorizedError(action string) error {
 	return fmt.Errorf("%s: %w", action, ErrUnauthorized)
+}
+
+// AccountLimitExceededError 创建账号数量超限错误
+func AccountLimitExceededError(current, limit int) error {
+	return fmt.Errorf("account limit reached (%d/%d): %w", current, limit, ErrAccountLimitExceeded)
 }
