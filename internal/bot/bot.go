@@ -4,6 +4,7 @@ package bot
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -123,7 +124,14 @@ func (b *Bot) handleUpdate(ctx context.Context, msg *tgbotapi.Message) {
 
 	// 处理命令
 	if msg.IsCommand() {
+		if isGroupChat(msg) && !b.isCommandForBot(msg) {
+			return
+		}
 		b.handleCommand(ctx, msg, currentUser)
+		return
+	}
+
+	if isGroupChat(msg) {
 		return
 	}
 
@@ -139,12 +147,7 @@ func (b *Bot) handleUpdate(ctx context.Context, msg *tgbotapi.Message) {
 		return
 	}
 
-	// 处理普通消息
-	if isGroupChat(msg) {
-		b.replyWithAutoDelete(msg.Chat.ID, "请使用命令进行操作，使用 /help 查看帮助", msg.MessageID)
-	} else {
-		b.reply(msg.Chat.ID, "请点击下方按钮进行操作，或使用 /start 查看主菜单")
-	}
+	b.reply(msg.Chat.ID, "请点击下方按钮进行操作，或使用 /start 查看主菜单")
 }
 
 // handleCommand 处理命令
@@ -255,6 +258,36 @@ func isPrivateChat(msg *tgbotapi.Message) bool {
 // isGroupChat 检查是否为群组或超级群组
 func isGroupChat(msg *tgbotapi.Message) bool {
 	return msg.Chat.Type == "group" || msg.Chat.Type == "supergroup"
+}
+
+// isCommandForBot 检查命令是否指定了本 Bot（用于群组）
+func (b *Bot) isCommandForBot(msg *tgbotapi.Message) bool {
+	if !msg.IsCommand() {
+		return false
+	}
+
+	entities := msg.Entities
+	if len(entities) == 0 {
+		return false
+	}
+
+	for _, entity := range entities {
+		if entity.Type == "bot_command" {
+			commandText := msg.Text[entity.Offset : entity.Offset+entity.Length]
+			if !strings.Contains(commandText, "@") {
+				return false
+			}
+
+			parts := strings.Split(commandText, "@")
+			if len(parts) != 2 {
+				return false
+			}
+
+			return parts[1] == b.api.Self.UserName
+		}
+	}
+
+	return false
 }
 
 // handleReplyKeyboardButton 处理 Reply Keyboard 按钮点击
