@@ -47,6 +47,17 @@ func (s *UserStore) GetByTelegramID(ctx context.Context, telegramID int64) (*use
 	return &u, nil
 }
 
+func (s *UserStore) GetByUsername(ctx context.Context, username string) (*user.User, error) {
+	var u user.User
+	if err := s.db.WithContext(ctx).Where("username = ?", username).First(&u).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, user.ErrNotFound
+		}
+		return nil, fmt.Errorf("get user by username: %w", err)
+	}
+	return &u, nil
+}
+
 func (s *UserStore) List(ctx context.Context, offset, limit int) ([]*user.User, error) {
 	var users []*user.User
 	query := s.db.WithContext(ctx).Order("created_at DESC")

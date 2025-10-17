@@ -41,12 +41,13 @@ type DatabaseConfig struct {
 
 // AccountConfig 账号配置
 type AccountConfig struct {
-	DefaultExpireDays  int    `mapstructure:"default_expire_days"`
-	DefaultMaxDevices  int    `mapstructure:"default_max_devices"`
-	UsernamePrefix     string `mapstructure:"username_prefix"`
-	PasswordLength     int    `mapstructure:"password_length"`
-	MaxAccountsPerUser int    `mapstructure:"max_accounts_per_user"`
-	MaxAccountsPerAdmin int   `mapstructure:"max_accounts_per_admin"`
+	DefaultExpireDays   int    `mapstructure:"default_expire_days"`
+	DefaultMaxDevices   int    `mapstructure:"default_max_devices"`
+	UsernamePrefix      string `mapstructure:"username_prefix"`
+	PasswordLength      int    `mapstructure:"password_length"`
+	DefaultQuota        int    `mapstructure:"default_quota"`
+	MaxAccountsPerUser  int    `mapstructure:"max_accounts_per_user"`
+	MaxAccountsPerAdmin int    `mapstructure:"max_accounts_per_admin"`
 }
 
 // EmbyConfig Emby 服务器配置
@@ -145,7 +146,8 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("account.default_max_devices", 3)
 	v.SetDefault("account.username_prefix", "")
 	v.SetDefault("account.password_length", 12)
-	v.SetDefault("account.max_accounts_per_user", 3)
+	v.SetDefault("account.default_quota", 0)
+	v.SetDefault("account.max_accounts_per_user", 99)
 	v.SetDefault("account.max_accounts_per_admin", -1)
 
 	// Emby 默认值

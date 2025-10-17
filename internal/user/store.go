@@ -14,6 +14,9 @@ type Store interface {
 	// GetByTelegramID 根据 Telegram ID 获取用户
 	GetByTelegramID(ctx context.Context, telegramID int64) (*User, error)
 
+	// GetByUsername 根据 Telegram username 获取用户
+	GetByUsername(ctx context.Context, username string) (*User, error)
+
 	// List 列出所有用户(分页)
 	List(ctx context.Context, offset, limit int) ([]*User, error)
 

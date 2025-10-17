@@ -4,6 +4,7 @@ package bot
 import (
 	"context"
 	"fmt"
+	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
@@ -100,17 +101,23 @@ func (b *Bot) Stop() {
 
 // handleUpdate 处理消息更新
 func (b *Bot) handleUpdate(ctx context.Context, msg *tgbotapi.Message) {
-	// 确保用户存在
 	currentUser, err := b.userService.GetOrCreate(ctx, msg.From)
 	if err != nil {
 		logger.Errorf("failed to get or create user: %v", err)
-		b.reply(msg.Chat.ID, "系统错误，请稍后再试")
+		if isGroupChat(msg) {
+			b.replyWithAutoDelete(msg.Chat.ID, "系统错误，请稍后再试", msg.MessageID)
+		} else {
+			b.reply(msg.Chat.ID, "系统错误，请稍后再试")
+		}
 		return
 	}
 
-	// 检查用户是否被封禁
 	if !currentUser.CanAccess() {
-		b.reply(msg.Chat.ID, "您已被封禁，无法使用此 Bot")
+		if isGroupChat(msg) {
+			b.replyWithAutoDelete(msg.Chat.ID, "您已被封禁，无法使用此 Bot", msg.MessageID)
+		} else {
+			b.reply(msg.Chat.ID, "您已被封禁，无法使用此 Bot")
+		}
 		return
 	}
 
@@ -133,7 +140,11 @@ func (b *Bot) handleUpdate(ctx context.Context, msg *tgbotapi.Message) {
 	}
 
 	// 处理普通消息
-	b.reply(msg.Chat.ID, "请点击下方按钮进行操作，或使用 /start 查看主菜单")
+	if isGroupChat(msg) {
+		b.replyWithAutoDelete(msg.Chat.ID, "请使用命令进行操作，使用 /help 查看帮助", msg.MessageID)
+	} else {
+		b.reply(msg.Chat.ID, "请点击下方按钮进行操作，或使用 /start 查看主菜单")
+	}
 }
 
 // handleCommand 处理命令
@@ -143,22 +154,40 @@ func (b *Bot) handleCommand(ctx context.Context, msg *tgbotapi.Message, currentU
 
 	logger.Infof("user executed command: %s, command: %s", currentUser.DisplayName(), cmd)
 
-	// 查找命令处理器
 	handler, ok := b.handlers[cmd]
 	if !ok {
-		b.reply(msg.Chat.ID, "未知命令，使用 /help 查看帮助")
+		if isGroupChat(msg) {
+			b.replyWithAutoDelete(msg.Chat.ID, "未知命令，使用 /help 查看帮助", msg.MessageID)
+		} else {
+			b.reply(msg.Chat.ID, "未知命令，使用 /help 查看帮助")
+		}
 		return
 	}
 
-	// 执行命令
+	if isGroupChat(msg) && !groupAllowedCommands[cmd] {
+		b.replyWithAutoDelete(msg.Chat.ID, "❌ 此命令仅支持私聊使用\n\n请点击 Bot 头像进入私聊", msg.MessageID)
+		return
+	}
+
 	reply, err := handler(ctx, msg, args)
 	if err != nil {
 		logger.Errorf("command execution failed: %s, error: %v", cmd, err)
-		b.reply(msg.Chat.ID, fmt.Sprintf("❌ 错误: %v", err))
+		errMsg := fmt.Sprintf("❌ 错误: %v", err)
+		if isGroupChat(msg) {
+			b.replyWithAutoDelete(msg.Chat.ID, errMsg, msg.MessageID)
+		} else {
+			b.reply(msg.Chat.ID, errMsg)
+		}
 		return
 	}
 
-	b.reply(msg.Chat.ID, reply)
+	if reply != "" {
+		if isGroupChat(msg) {
+			b.replyWithAutoDelete(msg.Chat.ID, reply, msg.MessageID)
+		} else {
+			b.reply(msg.Chat.ID, reply)
+		}
+	}
 }
 
 // reply 回复消息
@@ -168,6 +197,40 @@ func (b *Bot) reply(chatID int64, text string) {
 
 	if _, err := b.api.Send(msg); err != nil {
 		logger.Errorf("failed to send message: %v", err)
+	}
+}
+
+// replyWithAutoDelete 回复消息并在群组中自动删除
+func (b *Bot) replyWithAutoDelete(chatID int64, text string, userMsgID int) {
+	msg := tgbotapi.NewMessage(chatID, text)
+	msg.ParseMode = "HTML"
+
+	if chatID < 0 {
+		msg.ReplyMarkup = RemoveReplyKeyboard()
+	}
+
+	sentMsg, err := b.api.Send(msg)
+	if err != nil {
+		logger.Errorf("failed to send message: %v", err)
+		return
+	}
+
+	if chatID < 0 {
+		go func() {
+			time.Sleep(30 * time.Second)
+
+			deleteMsg := tgbotapi.NewDeleteMessage(chatID, sentMsg.MessageID)
+			if _, err := b.api.Request(deleteMsg); err != nil {
+				logger.Debugf("failed to delete bot message: %v", err)
+			}
+
+			if userMsgID != 0 {
+				deleteUserMsg := tgbotapi.NewDeleteMessage(chatID, userMsgID)
+				if _, err := b.api.Request(deleteUserMsg); err != nil {
+					logger.Debugf("failed to delete user message: %v", err)
+				}
+			}
+		}()
 	}
 }
 
@@ -184,10 +247,19 @@ func (b *Bot) requireAdmin(telegramID int64) error {
 	return nil
 }
 
+// isPrivateChat 检查是否为私聊
+func isPrivateChat(msg *tgbotapi.Message) bool {
+	return msg.Chat.Type == "private"
+}
+
+// isGroupChat 检查是否为群组或超级群组
+func isGroupChat(msg *tgbotapi.Message) bool {
+	return msg.Chat.Type == "group" || msg.Chat.Type == "supergroup"
+}
+
 // handleReplyKeyboardButton 处理 Reply Keyboard 按钮点击
 // 返回 true 表示已处理，false 表示不是按钮文本
 func (b *Bot) handleReplyKeyboardButton(ctx context.Context, msg *tgbotapi.Message, currentUser *user.User) bool {
-	// 创建一个模拟的 CallbackQuery 来复用现有的回调处理逻辑
 	var callbackData string
 
 	switch msg.Text {
@@ -199,15 +271,23 @@ func (b *Bot) handleReplyKeyboardButton(ctx context.Context, msg *tgbotapi.Messa
 		callbackData = CallbackHelp
 	case "🔑 管理员菜单":
 		if !currentUser.IsAdmin() {
-			b.reply(msg.Chat.ID, "❌ 您没有管理员权限")
+			if isGroupChat(msg) {
+				b.replyWithAutoDelete(msg.Chat.ID, "❌ 您没有管理员权限", msg.MessageID)
+			} else {
+				b.reply(msg.Chat.ID, "❌ 您没有管理员权限")
+			}
 			return true
 		}
 		callbackData = CallbackAdminMenu
 	default:
-		return false // 不是已知的按钮文本
+		return false
 	}
 
-	// 创建模拟的 CallbackQuery
+	if isGroupChat(msg) {
+		b.replyWithAutoDelete(msg.Chat.ID, "请在私聊中使用按钮功能", msg.MessageID)
+		return true
+	}
+
 	query := &tgbotapi.CallbackQuery{
 		ID:   fmt.Sprintf("reply_keyboard_%d", msg.MessageID),
 		From: msg.From,
@@ -219,14 +299,42 @@ func (b *Bot) handleReplyKeyboardButton(ctx context.Context, msg *tgbotapi.Messa
 		Data: callbackData,
 	}
 
-	// 调用回调处理函数
 	b.handleCallbackQuery(ctx, query)
 	return true
 }
 
 // setupBotCommands 设置 Bot 命令菜单（显示在输入框的 / 按钮中）
 func (b *Bot) setupBotCommands() error {
-	commands := []tgbotapi.BotCommand{
+	// 群组命令（仅白名单命令）
+	groupCommands := []tgbotapi.BotCommand{
+		{
+			Command:     "start",
+			Description: "开始使用 Bot",
+		},
+		{
+			Command:     "help",
+			Description: "查看帮助信息",
+		},
+		{
+			Command:     "grant",
+			Description: "授权用户创建账号（管理员）",
+		},
+		{
+			Command:     "stats",
+			Description: "查看系统统计（管理员）",
+		},
+		{
+			Command:     "checkemby",
+			Description: "检查 Emby 服务器状态",
+		},
+		{
+			Command:     "playingstats",
+			Description: "查看播放统计（管理员）",
+		},
+	}
+
+	// 私聊命令（全部命令）
+	privateCommands := []tgbotapi.BotCommand{
 		{
 			Command:     "start",
 			Description: "开始使用 Bot",
@@ -261,13 +369,30 @@ func (b *Bot) setupBotCommands() error {
 		},
 	}
 
-	// 设置命令
-	cfg := tgbotapi.NewSetMyCommands(commands...)
-	_, err := b.api.Request(cfg)
-	if err != nil {
-		return fmt.Errorf("set bot commands: %w", err)
+	// 为群组设置命令
+	groupScope := tgbotapi.BotCommandScope{
+		Type: "all_group_chats",
+	}
+	groupCfg := tgbotapi.SetMyCommandsConfig{
+		Commands: groupCommands,
+		Scope:    &groupScope,
+	}
+	if _, err := b.api.Request(groupCfg); err != nil {
+		logger.Warnf("failed to set group commands: %v", err)
 	}
 
-	logger.Info("bot commands configured")
+	// 为私聊设置命令
+	privateScope := tgbotapi.BotCommandScope{
+		Type: "all_private_chats",
+	}
+	privateCfg := tgbotapi.SetMyCommandsConfig{
+		Commands: privateCommands,
+		Scope:    &privateScope,
+	}
+	if _, err := b.api.Request(privateCfg); err != nil {
+		logger.Warnf("failed to set private commands: %v", err)
+	}
+
+	logger.Info("bot commands configured for different chat types")
 	return nil
 }

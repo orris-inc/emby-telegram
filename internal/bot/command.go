@@ -5,6 +5,16 @@ import (
 	"strings"
 )
 
+// groupAllowedCommands 群组中允许执行的命令白名单
+var groupAllowedCommands = map[string]bool{
+	"grant":        true,
+	"checkemby":    true,
+	"stats":        true,
+	"playingstats": true,
+	"help":         true,
+	"start":        true,
+}
+
 // registerHandlers 注册所有命令处理器
 func (b *Bot) registerHandlers() {
 	// 基础命令
@@ -17,9 +27,11 @@ func (b *Bot) registerHandlers() {
 	b.handlers["info"] = b.handleAccountInfo
 	b.handlers["renew"] = b.handleRenewAccount
 	b.handlers["changepassword"] = b.handleChangePassword
+	b.handlers["quota"] = b.handleQuota
 
 	// 管理员命令
 	b.handlers["admin"] = b.handleAdmin
+	b.handlers["grant"] = b.handleGrant
 	b.handlers["users"] = b.handleListUsers
 	b.handlers["accounts"] = b.handleListAccounts
 	b.handlers["deleteaccount"] = b.handleDeleteAccount

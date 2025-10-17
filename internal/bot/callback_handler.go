@@ -13,7 +13,11 @@ import (
 
 // handleCallbackQuery 处理按钮回调
 func (b *Bot) handleCallbackQuery(ctx context.Context, query *tgbotapi.CallbackQuery) {
-	// 确保用户存在
+	if query.Message != nil && isGroupChatFromMessage(query.Message) {
+		b.answerCallback(query.ID, "请在私聊中使用按钮功能", true)
+		return
+	}
+
 	currentUser, err := b.userService.GetOrCreate(ctx, query.From)
 	if err != nil {
 		logger.Errorf("failed to get or create user: %v", err)
@@ -21,7 +25,6 @@ func (b *Bot) handleCallbackQuery(ctx context.Context, query *tgbotapi.CallbackQ
 		return
 	}
 
-	// 检查用户是否被封禁
 	if !currentUser.CanAccess() {
 		b.answerCallback(query.ID, "您已被封禁，无法使用此 Bot", true)
 		return
@@ -77,13 +80,17 @@ type CallbackResponse struct {
 
 // sendCallbackResponse 发送回调响应
 func (b *Bot) sendCallbackResponse(query *tgbotapi.CallbackQuery, response CallbackResponse) {
-	// 1. Answer callback（如果是真实的 CallbackQuery）
 	if !strings.HasPrefix(query.ID, "reply_keyboard_") {
 		b.answerCallback(query.ID, response.Answer, response.ShowAlert)
 	}
 
-	// 2. 判断是否来自 Reply Keyboard
 	isReplyKeyboard := strings.HasPrefix(query.ID, "reply_keyboard_")
+	isGroup := query.Message != nil && isGroupChatFromMessage(query.Message)
+
+	if isGroup {
+		response.EditMarkup = nil
+		response.NewMarkup = nil
+	}
 
 	// 3. 编辑或发送消息
 	if response.EditText != "" {
@@ -162,4 +169,12 @@ func strToUint(s string) uint {
 		return 0
 	}
 	return uint(n)
+}
+
+// isGroupChatFromMessage 检查消息是否来自群组
+func isGroupChatFromMessage(msg *tgbotapi.Message) bool {
+	if msg == nil {
+		return false
+	}
+	return msg.Chat.Type == "group" || msg.Chat.Type == "supergroup"
 }

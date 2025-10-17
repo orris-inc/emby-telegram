@@ -21,23 +21,37 @@ func (b *Bot) handleStart(ctx context.Context, msg *tgbotapi.Message, args []str
 		return "", fmt.Errorf("获取用户信息失败: %w", err)
 	}
 
-	text := fmt.Sprintf(`👋 <b>欢迎使用 Emby 账号管理 Bot！</b>
+	var text string
+	if isPrivateChat(msg) {
+		text = fmt.Sprintf(`👋 <b>欢迎使用 Emby 账号管理 Bot！</b>
 
 您好，%s！
 
 请使用下方按钮或输入命令进行操作：`, user.DisplayName())
+	} else {
+		text = `👋 <b>欢迎使用 Emby 账号管理 Bot！</b>
 
-	// 发送带 Reply Keyboard 的消息（显示在输入框下方）
-	keyboard := MainReplyKeyboard(user.IsAdmin())
-	replyMsg := tgbotapi.NewMessage(msg.Chat.ID, text)
-	replyMsg.ParseMode = "HTML"
-	replyMsg.ReplyMarkup = keyboard
+⚠️ 所有账号操作请在<b>私聊</b>中进行
+💡 点击 Bot 头像进入私聊，使用 /help 查看帮助`
 
-	if _, err := b.api.Send(replyMsg); err != nil {
-		return "", fmt.Errorf("发送消息失败: %w", err)
+		if user.IsAdmin() {
+			text += "\n\n🔑 管理员可用命令：/grant /stats /checkemby"
+		}
 	}
 
-	return "", nil // 返回空，因为已经发送了消息
+	if isPrivateChat(msg) {
+		replyMsg := tgbotapi.NewMessage(msg.Chat.ID, text)
+		replyMsg.ParseMode = "HTML"
+		replyMsg.ReplyMarkup = MainReplyKeyboard(user.IsAdmin())
+
+		if _, err := b.api.Send(replyMsg); err != nil {
+			return "", fmt.Errorf("发送消息失败: %w", err)
+		}
+		return "", nil
+	}
+
+	b.replyWithAutoDelete(msg.Chat.ID, text, msg.MessageID)
+	return "", nil
 }
 
 // handleHelp 处理 /help 命令
@@ -45,6 +59,34 @@ func (b *Bot) handleHelp(ctx context.Context, msg *tgbotapi.Message, args []stri
 	user, err := b.userService.GetByTelegramID(ctx, msg.From.ID)
 	if err != nil {
 		return "", err
+	}
+
+	if isGroupChat(msg) {
+		help := `📚 <b>帮助信息</b>
+
+<b>基础命令:</b>
+/start - 开始使用
+/help - 查看帮助
+
+⚠️ <b>重要提示:</b>
+所有账号操作请在<b>私聊</b>中进行
+点击 Bot 头像即可进入私聊
+
+💡 在私聊中使用 /help 查看完整命令列表`
+
+		if user.IsAdmin() {
+			help += `
+
+🔑 <b>管理员命令:</b>
+/grant [用户] [配额] - 授权用户创建账号
+/stats - 查看系统统计
+/checkemby - 检查 Emby 服务器状态
+/playingstats - 查看播放统计
+
+💡 更多管理命令请在私聊中使用 /admin`
+		}
+
+		return help, nil
 	}
 
 	help := `📚 <b>帮助信息</b>
@@ -81,6 +123,10 @@ func (b *Bot) handleHelp(ctx context.Context, msg *tgbotapi.Message, args []stri
 
 // handleMyAccounts 处理 /myaccounts 命令
 func (b *Bot) handleMyAccounts(ctx context.Context, msg *tgbotapi.Message, args []string) (string, error) {
+	if !isPrivateChat(msg) {
+		return "请在私聊中使用此命令", nil
+	}
+
 	user, err := b.userService.GetByTelegramID(ctx, msg.From.ID)
 	if err != nil {
 		return "", err
@@ -115,6 +161,10 @@ func (b *Bot) handleMyAccounts(ctx context.Context, msg *tgbotapi.Message, args 
 
 // handleCreateAccount 处理 /create 命令
 func (b *Bot) handleCreateAccount(ctx context.Context, msg *tgbotapi.Message, args []string) (string, error) {
+	if !isPrivateChat(msg) {
+		return "请在私聊中使用此命令，避免密码泄露", nil
+	}
+
 	if !hasArg(args, 1) {
 		return "❌ 请提供用户名\n\n使用方法: <code>/create &lt;用户名&gt;</code>\n例如: <code>/create john</code>", nil
 	}
@@ -129,8 +179,11 @@ func (b *Bot) handleCreateAccount(ctx context.Context, msg *tgbotapi.Message, ar
 	// 创建账号
 	acc, plainPassword, err := b.accountService.Create(ctx, username, user.ID)
 	if err != nil {
+		if errors.Is(err, account.ErrNotAuthorized) {
+			return "❌ 您尚未获得创建账号的授权\n\n请在管理群组联系管理员申请", nil
+		}
 		if errors.Is(err, account.ErrAccountLimitExceeded) {
-			return fmt.Sprintf("❌ %v\n\n您已达到账号数量上限，无法继续创建。", err), nil
+			return fmt.Sprintf("❌ %v\n\n如需更多配额，请联系管理员", err), nil
 		}
 		return "", fmt.Errorf("创建账号失败: %w", err)
 	}
@@ -159,6 +212,10 @@ func (b *Bot) handleCreateAccount(ctx context.Context, msg *tgbotapi.Message, ar
 
 // handleAccountInfo 处理 /info 命令
 func (b *Bot) handleAccountInfo(ctx context.Context, msg *tgbotapi.Message, args []string) (string, error) {
+	if !isPrivateChat(msg) {
+		return "请在私聊中使用此命令", nil
+	}
+
 	if !hasArg(args, 1) {
 		return "❌ 请提供用户名\n\n使用方法: <code>/info &lt;用户名&gt;</code>", nil
 	}
@@ -209,6 +266,10 @@ func (b *Bot) handleAccountInfo(ctx context.Context, msg *tgbotapi.Message, args
 
 // handleRenewAccount 处理 /renew 命令
 func (b *Bot) handleRenewAccount(ctx context.Context, msg *tgbotapi.Message, args []string) (string, error) {
+	if !isPrivateChat(msg) {
+		return "请在私聊中使用此命令", nil
+	}
+
 	if !hasArg(args, 2) {
 		return "❌ 参数不足\n\n使用方法: <code>/renew &lt;用户名&gt; &lt;天数&gt;</code>\n例如: <code>/renew john 30</code>", nil
 	}
@@ -258,6 +319,10 @@ func (b *Bot) handleRenewAccount(ctx context.Context, msg *tgbotapi.Message, arg
 
 // handleChangePassword 处理 /changepassword 命令
 func (b *Bot) handleChangePassword(ctx context.Context, msg *tgbotapi.Message, args []string) (string, error) {
+	if !isPrivateChat(msg) {
+		return "请在私聊中使用此命令，避免密码泄露", nil
+	}
+
 	if !hasArg(args, 2) {
 		return "❌ 参数不足\n\n使用方法: <code>/changepassword &lt;用户名&gt; &lt;新密码&gt;</code>\n例如: <code>/changepassword john newpass123</code>", nil
 	}

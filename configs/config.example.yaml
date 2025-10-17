@@ -34,8 +34,10 @@ account:
   username_prefix: ""
   # 自动生成密码长度
   password_length: 12
-  # 普通用户最大账号数量
-  max_accounts_per_user: 3
+  # 新用户默认配额（0 表示需要管理员授权）
+  default_quota: 0
+  # 普通用户最大账号数量（技术上限）
+  max_accounts_per_user: 99
   # 管理员最大账号数量 (-1 表示无限制)
   max_accounts_per_admin: -1
 

@@ -197,3 +197,32 @@ func (s *Service) UpdateProfile(ctx context.Context, tgUser *tgbotapi.User) erro
 
 	return nil
 }
+
+// SetQuota 设置用户账号配额
+func (s *Service) SetQuota(ctx context.Context, userID uint, quota int) error {
+	user, err := s.store.Get(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("get user: %w", err)
+	}
+
+	if quota < 0 {
+		quota = 0
+	}
+
+	user.AccountQuota = quota
+
+	if err := s.store.Update(ctx, user); err != nil {
+		return fmt.Errorf("update user quota: %w", err)
+	}
+
+	return nil
+}
+
+// GetByUsername 根据 Telegram username 获取用户
+func (s *Service) GetByUsername(ctx context.Context, username string) (*User, error) {
+	user, err := s.store.GetByUsername(ctx, username)
+	if err != nil {
+		return nil, fmt.Errorf("get user by username: %w", err)
+	}
+	return user, nil
+}

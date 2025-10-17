@@ -248,7 +248,6 @@ func MainReplyKeyboard(isAdmin bool) tgbotapi.ReplyKeyboardMarkup {
 		},
 	}
 
-	// 管理员额外按钮
 	if isAdmin {
 		rows = append(rows, []tgbotapi.KeyboardButton{
 			tgbotapi.NewKeyboardButton("🔑 管理员菜单"),

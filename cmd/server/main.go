@@ -29,8 +29,9 @@ func (a *userGetterAdapter) Get(ctx context.Context, id uint) (account.User, err
 		return account.User{}, err
 	}
 	return account.User{
-		ID:      u.ID,
-		IsAdmin: u.IsAdmin(),
+		ID:           u.ID,
+		IsAdmin:      u.IsAdmin(),
+		AccountQuota: u.AccountQuota,
 	}, nil
 }
 

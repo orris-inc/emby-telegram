@@ -63,9 +63,13 @@ func (b *Bot) handleUsernameInput(ctx context.Context, msg *tgbotapi.Message, cu
 	// 创建账号
 	acc, plainPassword, err := b.accountService.Create(ctx, username, currentUser.ID)
 	if err != nil {
-		errMsg := fmt.Sprintf("❌ 创建账号失败: %v", err)
-		if errors.Is(err, account.ErrAccountLimitExceeded) {
-			errMsg = fmt.Sprintf("❌ %v\n\n您已达到账号数量上限，无法继续创建。", err)
+		var errMsg string
+		if errors.Is(err, account.ErrNotAuthorized) {
+			errMsg = "❌ 您尚未获得创建账号的授权\n\n请在管理群组联系管理员申请"
+		} else if errors.Is(err, account.ErrAccountLimitExceeded) {
+			errMsg = fmt.Sprintf("❌ %v\n\n如需更多配额，请联系管理员", err)
+		} else {
+			errMsg = fmt.Sprintf("❌ 创建账号失败: %v", err)
 		}
 		b.reply(msg.Chat.ID, errMsg)
 		b.stateMachine.ClearState(currentUser.TelegramID)

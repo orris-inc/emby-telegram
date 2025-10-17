@@ -20,8 +20,9 @@ type UserGetter interface {
 
 // User 用户信息
 type User struct {
-	ID      uint
-	IsAdmin bool
+	ID           uint
+	IsAdmin      bool
+	AccountQuota int
 }
 
 // Service 账号业务服务
@@ -56,6 +57,32 @@ func NewService(store Store, userGetter UserGetter, embyClient *emby.Client, use
 		syncOnCreate:        syncOnCreate,
 		syncOnDelete:        syncOnDelete,
 	}
+}
+
+// checkQuota 检查用户配额
+func (s *Service) checkQuota(ctx context.Context, userID uint) error {
+	user, err := s.userGetter.Get(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("get user info: %w", err)
+	}
+
+	// 检查是否授权
+	if user.AccountQuota == 0 {
+		return NotAuthorizedError()
+	}
+
+	// 查询当前账号数
+	currentCount, err := s.store.CountByUser(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("count user accounts: %w", err)
+	}
+
+	// 检查是否超配额
+	if int(currentCount) >= user.AccountQuota {
+		return QuotaExceededError(int(currentCount), user.AccountQuota)
+	}
+
+	return nil
 }
 
 // checkAccountLimit 检查账号数量限制
@@ -205,6 +232,11 @@ func (s *Service) Create(ctx context.Context, username string, userID uint) (*Ac
 		return nil, "", AlreadyExistsError(username)
 	}
 
+	// 检查用户配额
+	if err := s.checkQuota(ctx, userID); err != nil {
+		return nil, "", err
+	}
+
 	// 检查账号数量限制
 	if err := s.checkAccountLimit(ctx, userID); err != nil {
 		return nil, "", err
@@ -275,6 +307,11 @@ func (s *Service) CreateWithPassword(ctx context.Context, username, password str
 	// 检查是否已存在
 	if _, err := s.store.GetByUsername(ctx, username); err == nil {
 		return nil, AlreadyExistsError(username)
+	}
+
+	// 检查用户配额
+	if err := s.checkQuota(ctx, userID); err != nil {
+		return nil, err
 	}
 
 	// 检查账号数量限制

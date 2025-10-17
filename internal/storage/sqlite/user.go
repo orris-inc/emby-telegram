@@ -53,6 +53,18 @@ func (s *UserStore) GetByTelegramID(ctx context.Context, telegramID int64) (*use
 	return &u, nil
 }
 
+// GetByUsername 根据 Telegram username 获取用户
+func (s *UserStore) GetByUsername(ctx context.Context, username string) (*user.User, error) {
+	var u user.User
+	if err := s.db.WithContext(ctx).Where("username = ?", username).First(&u).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, user.ErrNotFound
+		}
+		return nil, fmt.Errorf("get user by username: %w", err)
+	}
+	return &u, nil
+}
+
 // List 列出所有用户(分页)
 func (s *UserStore) List(ctx context.Context, offset, limit int) ([]*user.User, error) {
 	var users []*user.User
