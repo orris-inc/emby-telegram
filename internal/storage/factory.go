@@ -6,15 +6,17 @@ import (
 	"gorm.io/gorm"
 
 	"emby-telegram/internal/account"
+	"emby-telegram/internal/invitecode"
 	"emby-telegram/internal/storage/mysql"
 	"emby-telegram/internal/storage/sqlite"
 	"emby-telegram/internal/user"
 )
 
 type Stores struct {
-	UserStore    user.Store
-	AccountStore account.Store
-	DB           *gorm.DB
+	UserStore       user.Store
+	AccountStore    account.Store
+	InviteCodeStore invitecode.Store
+	DB              *gorm.DB
 }
 
 func NewStores(driver, dsn string, debug bool) (*Stores, error) {
@@ -27,13 +29,11 @@ func NewStores(driver, dsn string, debug bool) (*Stores, error) {
 		if err != nil {
 			return nil, fmt.Errorf("open sqlite database: %w", err)
 		}
-		if err := sqlite.AutoMigrate(db); err != nil {
-			return nil, fmt.Errorf("migrate sqlite database: %w", err)
-		}
 		return &Stores{
-			UserStore:    sqlite.NewUserStore(db),
-			AccountStore: sqlite.NewAccountStore(db),
-			DB:           db,
+			UserStore:       sqlite.NewUserStore(db),
+			AccountStore:    sqlite.NewAccountStore(db),
+			InviteCodeStore: sqlite.NewInviteCodeStore(db),
+			DB:              db,
 		}, nil
 
 	case "mysql":
@@ -41,13 +41,11 @@ func NewStores(driver, dsn string, debug bool) (*Stores, error) {
 		if err != nil {
 			return nil, fmt.Errorf("open mysql database: %w", err)
 		}
-		if err := mysql.AutoMigrate(db); err != nil {
-			return nil, fmt.Errorf("migrate mysql database: %w", err)
-		}
 		return &Stores{
-			UserStore:    mysql.NewUserStore(db),
-			AccountStore: mysql.NewAccountStore(db),
-			DB:           db,
+			UserStore:       mysql.NewUserStore(db),
+			AccountStore:    mysql.NewAccountStore(db),
+			InviteCodeStore: mysql.NewInviteCodeStore(db),
+			DB:              db,
 		}, nil
 
 	default:

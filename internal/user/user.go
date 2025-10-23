@@ -19,17 +19,18 @@ const (
 
 // User 用户实体
 type User struct {
-	ID           uint           `gorm:"primarykey" json:"id"`
-	TelegramID   int64          `gorm:"uniqueIndex;not null" json:"telegram_id"`
-	Username     string         `gorm:"size:100" json:"username"`
-	FirstName    string         `gorm:"size:100" json:"first_name"`
-	LastName     string         `gorm:"size:100" json:"last_name"`
-	Role         Role           `gorm:"size:20;default:user" json:"role"`
-	IsBlocked    bool           `gorm:"default:false" json:"is_blocked"`
-	AccountQuota int            `gorm:"default:0" json:"account_quota"`
-	CreatedAt    time.Time      `json:"created_at"`
-	UpdatedAt    time.Time      `json:"updated_at"`
-	DeletedAt    gorm.DeletedAt `gorm:"index" json:"-"`
+	ID             uint           `gorm:"primarykey" json:"id"`
+	TelegramID     int64          `gorm:"uniqueIndex;not null" json:"telegram_id"`
+	Username       string         `gorm:"size:100" json:"username"`
+	FirstName      string         `gorm:"size:100" json:"first_name"`
+	LastName       string         `gorm:"size:100" json:"last_name"`
+	Role           Role           `gorm:"size:20;default:user" json:"role"`
+	IsBlocked      bool           `gorm:"default:false" json:"is_blocked"`
+	AccountQuota   int            `gorm:"default:0" json:"account_quota"`
+	UsedInviteCode bool           `gorm:"default:false" json:"used_invite_code"`
+	CreatedAt      time.Time      `json:"created_at"`
+	UpdatedAt      time.Time      `json:"updated_at"`
+	DeletedAt      gorm.DeletedAt `gorm:"index" json:"-"`
 }
 
 // TableName 指定表名

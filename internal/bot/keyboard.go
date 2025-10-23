@@ -37,6 +37,11 @@ const (
 	CallbackAdminEmby = "admin:emby"
 	CallbackAdminPlayingStats = "admin:playing"
 	CallbackAdminUpdatePolicies = "admin:updatepolicies"
+	CallbackAdminInviteCodes = "admin:invitecodes" // admin:invitecodes:page
+	CallbackAdminInviteCodeInfo = "admin:invitecode" // admin:invitecode:code
+	CallbackAdminCreateInviteCode = "admin:createcode" // admin:createcode
+	CallbackAdminRevokeInviteCode = "admin:revokecode" // admin:revokecode:code
+	CallbackAdminQuickCreateCode = "admin:quickcreate" // admin:quickcreate:preset
 
 	// 通用操作
 	CallbackConfirm = "confirm" // confirm:action:param
@@ -76,6 +81,9 @@ func AdminMenuKeyboard() tgbotapi.InlineKeyboardMarkup {
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("📋 账号管理", CallbackAdminAccounts+":1"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🎟️ 邀请码管理", CallbackAdminInviteCodes+":1"),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("🎬 Emby 管理", CallbackAdminEmby),

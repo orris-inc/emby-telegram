@@ -12,7 +12,9 @@ import (
 	"emby-telegram/internal/account"
 	"emby-telegram/internal/bot"
 	"emby-telegram/internal/config"
+	"emby-telegram/internal/database"
 	"emby-telegram/internal/emby"
+	"emby-telegram/internal/invitecode"
 	"emby-telegram/internal/logger"
 	"emby-telegram/internal/storage"
 	"emby-telegram/internal/user"
@@ -33,6 +35,31 @@ func (a *userGetterAdapter) Get(ctx context.Context, id uint) (account.User, err
 		IsAdmin:      u.IsAdmin(),
 		AccountQuota: u.AccountQuota,
 	}, nil
+}
+
+// inviteCodeUserGetterAdapter adapts user.Service to invitecode.UserGetter interface
+type inviteCodeUserGetterAdapter struct {
+	userService *user.Service
+}
+
+func (a *inviteCodeUserGetterAdapter) Get(ctx context.Context, id uint) (invitecode.User, error) {
+	u, err := a.userService.Get(ctx, id)
+	if err != nil {
+		return invitecode.User{}, err
+	}
+	return invitecode.User{
+		ID:             u.ID,
+		AccountQuota:   u.AccountQuota,
+		UsedInviteCode: u.UsedInviteCode,
+	}, nil
+}
+
+func (a *inviteCodeUserGetterAdapter) SetQuota(ctx context.Context, userID uint, quota int) error {
+	return a.userService.SetQuota(ctx, userID, quota)
+}
+
+func (a *inviteCodeUserGetterAdapter) MarkInviteCodeUsed(ctx context.Context, userID uint) error {
+	return a.userService.MarkInviteCodeUsed(ctx, userID)
 }
 
 func main() {
@@ -57,6 +84,15 @@ func main() {
 		logger.Fatalf("failed to initialize database: %v", err)
 	}
 	logger.Infof("✓ database connected (driver: %s)", cfg.Database.Driver)
+
+	sqlDB, err := stores.DB.DB()
+	if err != nil {
+		logger.Fatalf("failed to get sql.DB: %v", err)
+	}
+
+	if err := database.RunMigrations(sqlDB, cfg.Database.Driver, "migrations", logger.Logger()); err != nil {
+		logger.Fatalf("failed to run migrations: %v", err)
+	}
 	logger.Info("✓ database migrated")
 
 	// 初始化 Emby Client
@@ -85,7 +121,6 @@ func main() {
 
 	userService := user.NewService(stores.UserStore)
 
-	// 创建 UserGetter 适配器
 	userGetter := &userGetterAdapter{userService: userService}
 
 	accountService := account.NewService(
@@ -103,12 +138,17 @@ func main() {
 		cfg.Emby.SyncOnDelete,
 	)
 
-	// 创建并启动 Telegram Bot
+	inviteCodeUserGetter := &inviteCodeUserGetterAdapter{userService: userService}
+	inviteCodeService := invitecode.NewService(stores.InviteCodeStore, inviteCodeUserGetter)
+
+	logger.Infof("✓ services initialized (user, account, invitecode)")
+
 	telegramBot, err := bot.New(
 		cfg.Telegram.Token,
 		cfg.Telegram.AdminIDs,
 		accountService,
 		userService,
+		inviteCodeService,
 		embyClient,
 	)
 	if err != nil {

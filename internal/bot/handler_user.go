@@ -23,6 +23,27 @@ func (b *Bot) handleStart(ctx context.Context, msg *tgbotapi.Message, args []str
 
 	var text string
 	if isPrivateChat(msg) {
+		if user.AccountQuota == 0 && !user.UsedInviteCode {
+			text = `👋 <b>欢迎使用 Emby 账号管理 Bot！</b>
+
+❗ 您还没有账号配额
+
+🎟️ 请输入邀请码激活账号权限
+（直接输入邀请码即可）
+
+或者联系管理员获取授权`
+
+			b.stateMachine.SetState(user.TelegramID, StateWaitingInviteCode, nil)
+
+			replyMsg := tgbotapi.NewMessage(msg.Chat.ID, text)
+			replyMsg.ParseMode = "HTML"
+
+			if _, err := b.api.Send(replyMsg); err != nil {
+				return "", fmt.Errorf("发送消息失败: %w", err)
+			}
+			return "", nil
+		}
+
 		text = fmt.Sprintf(`👋 <b>欢迎使用 Emby 账号管理 Bot！</b>
 
 您好，%s！
@@ -35,7 +56,7 @@ func (b *Bot) handleStart(ctx context.Context, msg *tgbotapi.Message, args []str
 💡 点击 Bot 头像进入私聊，使用 /help 查看帮助`
 
 		if user.IsAdmin() {
-			text += "\n\n🔑 管理员可用命令：/grant /stats /checkemby"
+			text += "\n\n🔑 管理员可用命令：/grant /stats /checkemby /generatecode"
 		}
 	}
 

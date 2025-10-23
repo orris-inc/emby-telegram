@@ -12,6 +12,7 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
 	"emby-telegram/internal/account"
+	"emby-telegram/internal/invitecode"
 	"emby-telegram/internal/user"
 	"emby-telegram/pkg/timeutil"
 )
@@ -32,6 +33,8 @@ func (b *Bot) handleStateInput(ctx context.Context, msg *tgbotapi.Message, curre
 		b.handlePasswordInput(ctx, msg, currentUser, stateData)
 	case StateWaitingDays:
 		b.handleDaysInput(ctx, msg, currentUser, stateData)
+	case StateWaitingInviteCode:
+		b.handleInviteCodeInput(ctx, msg, currentUser)
 	default:
 		b.stateMachine.ClearState(currentUser.TelegramID)
 		b.reply(msg.Chat.ID, "会话已过期，请重新开始")
@@ -44,19 +47,47 @@ func (b *Bot) handleUsernameInput(ctx context.Context, msg *tgbotapi.Message, cu
 
 	// 验证用户名格式
 	if !isValidUsername(username) {
-		b.reply(msg.Chat.ID, `❌ 用户名格式不正确
+		text := `❌ 用户名格式不正确
 
 <b>用户名要求：</b>
 • 只能包含字母、数字和下划线
 • 长度 3-20 个字符
 
-请重新输入，或发送 /cancel 取消：`)
+请重新输入，或点击下方按钮取消：`
+
+		keyboard := tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("❌ 取消", CallbackCancel),
+			),
+		)
+
+		replyMsg := tgbotapi.NewMessage(msg.Chat.ID, text)
+		replyMsg.ParseMode = "HTML"
+		replyMsg.ReplyMarkup = keyboard
+
+		if _, err := b.api.Send(replyMsg); err != nil {
+			b.reply(msg.Chat.ID, text)
+		}
 		return
 	}
 
 	// 检查用户名是否已存在
 	if _, err := b.accountService.GetByUsername(ctx, username); err == nil {
-		b.reply(msg.Chat.ID, fmt.Sprintf("❌ 用户名 <code>%s</code> 已存在，请使用其他用户名：", username))
+		text := fmt.Sprintf("❌ 用户名 <code>%s</code> 已存在，请使用其他用户名：", username)
+
+		keyboard := tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("❌ 取消", CallbackCancel),
+			),
+		)
+
+		replyMsg := tgbotapi.NewMessage(msg.Chat.ID, text)
+		replyMsg.ParseMode = "HTML"
+		replyMsg.ReplyMarkup = keyboard
+
+		if _, err := b.api.Send(replyMsg); err != nil {
+			b.reply(msg.Chat.ID, text)
+		}
 		return
 	}
 
@@ -123,9 +154,23 @@ func (b *Bot) handlePasswordInput(ctx context.Context, msg *tgbotapi.Message, cu
 
 	// 验证密码格式
 	if len(password) < 6 {
-		b.reply(msg.Chat.ID, `❌ 密码长度至少 6 个字符
+		text := `❌ 密码长度至少 6 个字符
 
-请重新输入，或发送 /cancel 取消：`)
+请重新输入，或点击下方按钮取消：`
+
+		keyboard := tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("❌ 取消", CallbackCancel),
+			),
+		)
+
+		replyMsg := tgbotapi.NewMessage(msg.Chat.ID, text)
+		replyMsg.ParseMode = "HTML"
+		replyMsg.ReplyMarkup = keyboard
+
+		if _, err := b.api.Send(replyMsg); err != nil {
+			b.reply(msg.Chat.ID, text)
+		}
 		return
 	}
 
@@ -196,9 +241,23 @@ func (b *Bot) handleDaysInput(ctx context.Context, msg *tgbotapi.Message, curren
 
 	days, err := strconv.Atoi(daysStr)
 	if err != nil || days <= 0 || days > 3650 {
-		b.reply(msg.Chat.ID, `❌ 请输入有效的天数（1-3650）
+		text := `❌ 请输入有效的天数（1-3650）
 
-请重新输入，或发送 /cancel 取消：`)
+请重新输入，或点击下方按钮取消：`
+
+		keyboard := tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("❌ 取消", CallbackCancel),
+			),
+		)
+
+		replyMsg := tgbotapi.NewMessage(msg.Chat.ID, text)
+		replyMsg.ParseMode = "HTML"
+		replyMsg.ReplyMarkup = keyboard
+
+		if _, err := b.api.Send(replyMsg); err != nil {
+			b.reply(msg.Chat.ID, text)
+		}
 		return
 	}
 
@@ -254,6 +313,83 @@ func (b *Bot) handleDaysInput(ctx context.Context, msg *tgbotapi.Message, curren
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("📋 我的账号", CallbackMyAccounts+":1"),
+		),
+	)
+
+	replyMsg := tgbotapi.NewMessage(msg.Chat.ID, text)
+	replyMsg.ParseMode = "HTML"
+	replyMsg.ReplyMarkup = keyboard
+
+	if _, err := b.api.Send(replyMsg); err != nil {
+		b.reply(msg.Chat.ID, text)
+	}
+}
+
+// handleInviteCodeInput 处理邀请码输入
+func (b *Bot) handleInviteCodeInput(ctx context.Context, msg *tgbotapi.Message, currentUser *user.User) {
+	code := strings.TrimSpace(msg.Text)
+
+	if err := b.inviteCodeService.Activate(ctx, code, currentUser.ID); err != nil {
+		var errMsg string
+		var needsRetry bool
+
+		if errors.Is(err, invitecode.ErrNotFound) {
+			errMsg = fmt.Sprintf("❌ 邀请码 <code>%s</code> 不存在或无效\n\n请检查后重新输入，或点击下方按钮取消", code)
+			needsRetry = true
+		} else if errors.Is(err, invitecode.ErrAlreadyUsed) {
+			errMsg = "❌ 您已使用过邀请码，无法重复激活"
+			b.stateMachine.ClearState(currentUser.TelegramID)
+		} else if errors.Is(err, invitecode.ErrHasQuota) {
+			errMsg = "❌ 您已有账号配额，无需使用邀请码"
+			b.stateMachine.ClearState(currentUser.TelegramID)
+		} else if errors.Is(err, invitecode.ErrCodeExpired) {
+			errMsg = fmt.Sprintf("❌ 邀请码 <code>%s</code> 已过期\n\n请联系管理员获取新的邀请码", code)
+			b.stateMachine.ClearState(currentUser.TelegramID)
+		} else if errors.Is(err, invitecode.ErrCodeExhausted) {
+			errMsg = fmt.Sprintf("❌ 邀请码 <code>%s</code> 使用次数已达上限\n\n请联系管理员获取新的邀请码", code)
+			b.stateMachine.ClearState(currentUser.TelegramID)
+		} else if errors.Is(err, invitecode.ErrCodeRevoked) {
+			errMsg = fmt.Sprintf("❌ 邀请码 <code>%s</code> 已被撤销\n\n请联系管理员获取新的邀请码", code)
+			b.stateMachine.ClearState(currentUser.TelegramID)
+		} else {
+			errMsg = fmt.Sprintf("❌ 激活失败: %v", err)
+			b.stateMachine.ClearState(currentUser.TelegramID)
+		}
+
+		replyMsg := tgbotapi.NewMessage(msg.Chat.ID, errMsg)
+		replyMsg.ParseMode = "HTML"
+
+		if needsRetry {
+			keyboard := tgbotapi.NewInlineKeyboardMarkup(
+				tgbotapi.NewInlineKeyboardRow(
+					tgbotapi.NewInlineKeyboardButtonData("❌ 取消", CallbackCancel),
+				),
+			)
+			replyMsg.ReplyMarkup = keyboard
+		}
+
+		if _, err := b.api.Send(replyMsg); err != nil {
+			b.reply(msg.Chat.ID, errMsg)
+		}
+		return
+	}
+
+	b.stateMachine.ClearState(currentUser.TelegramID)
+
+	text := fmt.Sprintf(`🎉 <b>激活成功！</b>
+
+邀请码 <code>%s</code> 已激活
+您获得了 <b>1 个账号配额</b>
+
+现在可以使用 /create 创建账号了！`, code)
+
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("➕ 创建账号", CallbackCreateAccount),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("📋 我的账号", CallbackMyAccounts+":1"),
+			tgbotapi.NewInlineKeyboardButtonData("⬅️ 主菜单", CallbackMainMenu),
 		),
 	)
 

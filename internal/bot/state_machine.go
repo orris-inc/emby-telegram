@@ -10,10 +10,11 @@ import (
 type UserState string
 
 const (
-	StateIdle             UserState = "idle"              // 空闲状态
-	StateWaitingUsername  UserState = "waiting_username"  // 等待输入用户名
-	StateWaitingPassword  UserState = "waiting_password"  // 等待输入密码
-	StateWaitingDays      UserState = "waiting_days"      // 等待输入天数
+	StateIdle              UserState = "idle"               // 空闲状态
+	StateWaitingUsername   UserState = "waiting_username"   // 等待输入用户名
+	StateWaitingPassword   UserState = "waiting_password"   // 等待输入密码
+	StateWaitingDays       UserState = "waiting_days"       // 等待输入天数
+	StateWaitingInviteCode UserState = "waiting_invite_code" // 等待输入邀请码
 )
 
 // StateData 状态数据

@@ -10,9 +10,6 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
-
-	"emby-telegram/internal/account"
-	"emby-telegram/internal/user"
 )
 
 // Open 打开 SQLite 数据库连接
@@ -53,19 +50,6 @@ func Open(dsn string, debug bool) (*gorm.DB, error) {
 	sqlDB.SetConnMaxLifetime(time.Hour)
 
 	return db, nil
-}
-
-// AutoMigrate 自动迁移数据库表结构
-func AutoMigrate(db *gorm.DB) error {
-	// 迁移所有模型
-	if err := db.AutoMigrate(
-		&user.User{},
-		&account.Account{},
-	); err != nil {
-		return fmt.Errorf("auto migrate: %w", err)
-	}
-
-	return nil
 }
 
 // Close 关闭数据库连接

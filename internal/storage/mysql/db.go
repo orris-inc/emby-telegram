@@ -7,9 +7,6 @@ import (
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
-
-	"emby-telegram/internal/account"
-	"emby-telegram/internal/user"
 )
 
 func Open(dsn string, debug bool) (*gorm.DB, error) {
@@ -37,17 +34,6 @@ func Open(dsn string, debug bool) (*gorm.DB, error) {
 	sqlDB.SetConnMaxLifetime(time.Hour)
 
 	return db, nil
-}
-
-func AutoMigrate(db *gorm.DB) error {
-	if err := db.AutoMigrate(
-		&user.User{},
-		&account.Account{},
-	); err != nil {
-		return fmt.Errorf("auto migrate: %w", err)
-	}
-
-	return nil
 }
 
 func Close(db *gorm.DB) error {

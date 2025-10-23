@@ -11,51 +11,51 @@ import (
 
 	"emby-telegram/internal/account"
 	"emby-telegram/internal/emby"
+	"emby-telegram/internal/invitecode"
 	"emby-telegram/internal/logger"
 	"emby-telegram/internal/user"
 )
 
 // Bot Telegram Bot 实例
 type Bot struct {
-	api            *tgbotapi.BotAPI
-	accountService *account.Service
-	userService    *user.Service
-	embyClient     *emby.Client
-	adminIDs       map[int64]bool
-	handlers       map[string]CommandHandler
-	stateMachine   *StateMachine // 状态机
+	api               *tgbotapi.BotAPI
+	accountService    *account.Service
+	userService       *user.Service
+	inviteCodeService *invitecode.Service
+	embyClient        *emby.Client
+	adminIDs          map[int64]bool
+	handlers          map[string]CommandHandler
+	stateMachine      *StateMachine
 }
 
 // CommandHandler 命令处理函数类型
 type CommandHandler func(ctx context.Context, msg *tgbotapi.Message, args []string) (string, error)
 
 // New 创建 Bot 实例
-func New(token string, adminIDs []int64, accountSvc *account.Service, userSvc *user.Service, embyClient *emby.Client) (*Bot, error) {
+func New(token string, adminIDs []int64, accountSvc *account.Service, userSvc *user.Service, inviteCodeSvc *invitecode.Service, embyClient *emby.Client) (*Bot, error) {
 	api, err := tgbotapi.NewBotAPI(token)
 	if err != nil {
 		return nil, fmt.Errorf("create bot api: %w", err)
 	}
 
-	// 创建管理员映射
 	admins := make(map[int64]bool, len(adminIDs))
 	for _, id := range adminIDs {
 		admins[id] = true
 	}
 
 	b := &Bot{
-		api:            api,
-		accountService: accountSvc,
-		userService:    userSvc,
-		embyClient:     embyClient,
-		adminIDs:       admins,
-		handlers:       make(map[string]CommandHandler),
-		stateMachine:   NewStateMachine(),
+		api:               api,
+		accountService:    accountSvc,
+		userService:       userSvc,
+		inviteCodeService: inviteCodeSvc,
+		embyClient:        embyClient,
+		adminIDs:          admins,
+		handlers:          make(map[string]CommandHandler),
+		stateMachine:      NewStateMachine(),
 	}
 
-	// 注册命令处理器
 	b.registerHandlers()
 
-	// 设置 Bot 命令菜单
 	if err := b.setupBotCommands(); err != nil {
 		logger.Warnf("failed to setup bot commands: %v", err)
 	}

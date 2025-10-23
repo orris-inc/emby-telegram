@@ -13,6 +13,8 @@ var groupAllowedCommands = map[string]bool{
 	"playingstats": true,
 	"help":         true,
 	"start":        true,
+	"generatecode": true,
+	"listcodes":    true,
 }
 
 // registerHandlers 注册所有命令处理器
@@ -50,6 +52,12 @@ func (b *Bot) registerHandlers() {
 	b.handlers["syncaccount"] = b.handleSyncAccount
 	b.handlers["embyusers"] = b.handleListEmbyUsers
 	b.handlers["setdevicelimit"] = b.handleSetDeviceLimit
+
+	// 邀请码管理命令
+	b.handlers["generatecode"] = b.handleGenerateCode
+	b.handlers["listcodes"] = b.handleListCodes
+	b.handlers["codeinfo"] = b.handleCodeInfo
+	b.handlers["revokecode"] = b.handleRevokeCode
 }
 
 // parseArgs 解析命令参数

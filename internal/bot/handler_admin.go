@@ -28,12 +28,19 @@ func (b *Bot) handleAdmin(ctx context.Context, msg *tgbotapi.Message, args []str
 /setrole &lt;telegram_id&gt; &lt;admin|user&gt; - 设置用户角色
 /blockuser &lt;telegram_id&gt; - 封禁用户
 /unblockuser &lt;telegram_id&gt; - 解封用户
+/grant &lt;telegram_id&gt; &lt;配额&gt; - 授予用户账号配额
 
 <b>账号管理:</b>
 /accounts [页码] - 列出所有账号
 /deleteaccount &lt;用户名&gt; - 删除账号
 /suspend &lt;用户名&gt; - 暂停账号
 /activate &lt;用户名&gt; - 激活账号
+
+<b>邀请码管理:</b>
+/generatecode [次数] [天数] [描述] - 生成邀请码
+/listcodes [页码] - 列出所有邀请码
+/codeinfo &lt;邀请码&gt; - 查看邀请码详情
+/revokecode &lt;邀请码&gt; - 撤销邀请码
 
 <b>Emby 管理:</b>
 /checkemby - 检查 Emby 服务器连接状态
@@ -48,11 +55,13 @@ func (b *Bot) handleAdmin(ctx context.Context, msg *tgbotapi.Message, args []str
 
 <b>使用示例:</b>
 <code>/users 1</code> - 查看第1页用户
-<code>/setrole 123456 admin</code> - 设置用户为管理员
-<code>/blockuser 123456</code> - 封禁用户
+<code>/grant 123456 1</code> - 授予用户1个账号配额
+<code>/generatecode 10 30 "推广活动"</code> - 生成10次/30天邀请码
+<code>/listcodes 1</code> - 查看第1页邀请码
+<code>/codeinfo ABC12345</code> - 查看邀请码详情
+<code>/revokecode ABC12345</code> - 撤销邀请码
 <code>/deleteaccount emby_john</code> - 删除账号
 <code>/checkemby</code> - 检查 Emby 连接
-<code>/setdevicelimit john 5</code> - 设置设备限制
 `, nil
 }
 

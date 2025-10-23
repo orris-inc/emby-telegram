@@ -1,135 +1,136 @@
-// Package logger 提供简化的日志功能
 package logger
 
 import (
+	"fmt"
+	"io"
+	"log/slog"
 	"os"
-
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 var (
-	log *zap.SugaredLogger
+	log *slog.Logger
 )
 
-// Init 初始化日志系统
 func Init(level, output string) error {
-	// 解析日志级别
-	zapLevel, err := parseLevel(level)
-	if err != nil {
-		zapLevel = zapcore.InfoLevel
-	}
+	slogLevel := parseLevel(level)
+	addSource := slogLevel == slog.LevelDebug
 
-	// 配置编码器
-	encoderConfig := zap.NewProductionEncoderConfig()
-	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
-	encoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder
-	encoderConfig.ConsoleSeparator = "\t"  // 使用 Tab 分隔字段
+	var writer io.Writer
+	var useColor bool
 
-	// 配置输出
-	var writer zapcore.WriteSyncer
 	switch output {
 	case "stdout", "":
-		writer = zapcore.AddSync(os.Stdout)
+		writer = os.Stdout
+		useColor = isTerminal(os.Stdout)
 	case "stderr":
-		writer = zapcore.AddSync(os.Stderr)
+		writer = os.Stderr
+		useColor = isTerminal(os.Stderr)
 	default:
-		// 文件输出
 		file, err := os.OpenFile(output, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
 			return err
 		}
-		writer = zapcore.AddSync(file)
+		writer = file
+		useColor = false
 	}
 
-	// 创建核心
-	core := zapcore.NewCore(
-		newAlignedEncoder(encoderConfig),
-		writer,
-		zapLevel,
-	)
+	var handler slog.Handler
+	if useColor {
+		handler = newColorHandler(writer, &slog.HandlerOptions{
+			Level:     slogLevel,
+			AddSource: addSource,
+		})
+	} else {
+		handler = slog.NewJSONHandler(writer, &slog.HandlerOptions{
+			Level:     slogLevel,
+			AddSource: addSource,
+		})
+	}
 
-	// 创建 logger
-	logger := zap.New(core, zap.AddCaller(), zap.AddCallerSkip(1))
-	log = logger.Sugar()
-
+	log = slog.New(handler)
 	return nil
 }
 
-// parseLevel 解析日志级别
-func parseLevel(level string) (zapcore.Level, error) {
+func parseLevel(level string) slog.Level {
 	switch level {
 	case "debug":
-		return zapcore.DebugLevel, nil
+		return slog.LevelDebug
 	case "info":
-		return zapcore.InfoLevel, nil
+		return slog.LevelInfo
 	case "warn", "warning":
-		return zapcore.WarnLevel, nil
+		return slog.LevelWarn
 	case "error":
-		return zapcore.ErrorLevel, nil
+		return slog.LevelError
 	default:
-		return zapcore.InfoLevel, nil
+		return slog.LevelInfo
 	}
 }
 
-// Sync 刷新日志缓冲
+func isTerminal(f *os.File) bool {
+	fileInfo, err := f.Stat()
+	if err != nil {
+		return false
+	}
+	return (fileInfo.Mode() & os.ModeCharDevice) != 0
+}
+
 func Sync() {
-	if log != nil {
-		_ = log.Sync()
-	}
 }
 
-// Debug 输出 debug 级别日志
 func Debug(args ...interface{}) {
-	log.Debug(args...)
+	log.Debug(sprint(args...))
 }
 
-// Debugf 格式化输出 debug 级别日志
 func Debugf(template string, args ...interface{}) {
-	log.Debugf(template, args...)
+	log.Debug(sprintf(template, args...))
 }
 
-// Info 输出 info 级别日志
 func Info(args ...interface{}) {
-	log.Info(args...)
+	log.Info(sprint(args...))
 }
 
-// Infof 格式化输出 info 级别日志
 func Infof(template string, args ...interface{}) {
-	log.Infof(template, args...)
+	log.Info(sprintf(template, args...))
 }
 
-// Warn 输出 warn 级别日志
 func Warn(args ...interface{}) {
-	log.Warn(args...)
+	log.Warn(sprint(args...))
 }
 
-// Warnf 格式化输出 warn 级别日志
 func Warnf(template string, args ...interface{}) {
-	log.Warnf(template, args...)
+	log.Warn(sprintf(template, args...))
 }
 
-// Error 输出 error 级别日志
 func Error(args ...interface{}) {
-	log.Error(args...)
+	log.Error(sprint(args...))
 }
 
-// Errorf 格式化输出 error 级别日志
 func Errorf(template string, args ...interface{}) {
-	log.Errorf(template, args...)
+	log.Error(sprintf(template, args...))
 }
 
-// Fatal 输出 fatal 级别日志并退出程序
 func Fatal(args ...interface{}) {
-	log.Fatal(args...)
+	log.Error(sprint(args...))
+	os.Exit(1)
 }
 
-// Fatalf 格式化输出 fatal 级别日志并退出程序
 func Fatalf(template string, args ...interface{}) {
-	log.Fatalf(template, args...)
+	log.Error(sprintf(template, args...))
+	os.Exit(1)
 }
 
-// With 添加结构化字段
-func With(args ...interface{}) *zap.SugaredLogger {
+func With(args ...interface{}) *slog.Logger {
 	return log.With(args...)
+}
+
+func Logger() *slog.Logger {
+	return log
+}
+
+func sprint(args ...interface{}) string {
+	return fmt.Sprint(args...)
+}
+
+func sprintf(template string, args ...interface{}) string {
+	return fmt.Sprintf(template, args...)
 }

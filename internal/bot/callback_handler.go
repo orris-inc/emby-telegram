@@ -57,7 +57,11 @@ func (b *Bot) handleCallbackQuery(ctx context.Context, query *tgbotapi.CallbackQ
 	case "confirm":
 		response = b.handleConfirmCallback(ctx, query, parts, currentUser)
 	case "cancel":
-		response = CallbackResponse{Answer: "操作已取消"}
+		b.stateMachine.ClearState(currentUser.TelegramID)
+		response = CallbackResponse{
+			Answer:   "操作已取消",
+			EditText: "✅ 操作已取消",
+		}
 	case "back":
 		response = b.handleBackCallback(ctx, query, parts, currentUser)
 	default:
@@ -116,7 +120,10 @@ func (b *Bot) sendCallbackResponse(query *tgbotapi.CallbackQuery, response Callb
 				edit.ReplyMarkup = response.EditMarkup
 			}
 			if _, err := b.api.Send(edit); err != nil {
-				logger.Errorf("failed to edit message: %v", err)
+				// 忽略"消息未修改"错误，这是正常情况
+				if !strings.Contains(err.Error(), "message is not modified") {
+					logger.Errorf("failed to edit message: %v", err)
+				}
 			}
 		}
 	}

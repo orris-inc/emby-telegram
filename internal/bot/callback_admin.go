@@ -84,6 +84,32 @@ func (b *Bot) handleAdminCallback(ctx context.Context, query *tgbotapi.CallbackQ
 		}
 		accountID := strToUint(parts[2])
 		return b.handleActivateAccount(ctx, accountID)
+	case "invitecodes":
+		page := 1
+		if len(parts) >= 3 {
+			page = strToInt(parts[2])
+		}
+		return b.showInviteCodesList(ctx, page)
+	case "invitecode":
+		if len(parts) < 3 {
+			return CallbackResponse{Answer: "无效的操作", ShowAlert: true}
+		}
+		code := parts[2]
+		return b.showInviteCodeDetail(ctx, code)
+	case "createcode":
+		return b.showCreateInviteCodeMenu(ctx)
+	case "quickcreate":
+		if len(parts) < 3 {
+			return CallbackResponse{Answer: "无效的操作", ShowAlert: true}
+		}
+		preset := parts[2]
+		return b.handleQuickCreateInviteCode(ctx, preset, currentUser.TelegramID)
+	case "revokecode":
+		if len(parts) < 3 {
+			return CallbackResponse{Answer: "无效的操作", ShowAlert: true}
+		}
+		code := parts[2]
+		return b.handleRevokeInviteCode(ctx, code)
 	default:
 		return CallbackResponse{Answer: "未知操作", ShowAlert: true}
 	}
@@ -563,5 +589,347 @@ func (b *Bot) handleActivateAccount(ctx context.Context, accountID uint) Callbac
 			kb := AdminAccountActionsKeyboard(acc.ID, string(acc.Status), 1)
 			return &kb
 		}(),
+	}
+}
+
+// showInviteCodesList 显示邀请码列表
+func (b *Bot) showInviteCodesList(ctx context.Context, page int) CallbackResponse {
+	limit := 10
+	offset := (page - 1) * limit
+
+	codes, err := b.inviteCodeService.List(ctx, offset, limit)
+	if err != nil {
+		return CallbackResponse{
+			Answer:    "获取邀请码列表失败",
+			ShowAlert: true,
+		}
+	}
+
+	totalCount, _ := b.inviteCodeService.Count(ctx)
+
+	if len(codes) == 0 {
+		text := `🎟️ <b>邀请码管理</b>
+
+暂无邀请码
+
+点击下方按钮创建第一个邀请码`
+
+		keyboard := tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("➕ 创建邀请码", CallbackAdminCreateInviteCode),
+			),
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("⬅️ 返回", CallbackAdminMenu),
+			),
+		)
+
+		return CallbackResponse{
+			EditText:   text,
+			EditMarkup: &keyboard,
+		}
+	}
+
+	text := fmt.Sprintf(`🎟️ <b>邀请码列表</b>
+
+共 %d 个邀请码，点击查看详情`, totalCount)
+
+	var rows [][]tgbotapi.InlineKeyboardButton
+
+	for _, code := range codes {
+		statusEmoji := "✅"
+		if code.Status == "revoked" {
+			statusEmoji = "🚫"
+		} else if code.IsExpired() {
+			statusEmoji = "⏰"
+		} else if code.IsExhausted() {
+			statusEmoji = "💯"
+		}
+
+		usageText := ""
+		if code.MaxUses == -1 {
+			usageText = fmt.Sprintf("(%d/∞)", code.CurrentUses)
+		} else {
+			usageText = fmt.Sprintf("(%d/%d)", code.CurrentUses, code.MaxUses)
+		}
+
+		buttonText := fmt.Sprintf("%s %s %s", statusEmoji, code.Code, usageText)
+
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(
+				buttonText,
+				CallbackAdminInviteCodeInfo+":"+code.Code,
+			),
+		))
+	}
+
+	totalPages := (int(totalCount) + limit - 1) / limit
+
+	if totalPages > 1 {
+		var pageRow []tgbotapi.InlineKeyboardButton
+		if page > 1 {
+			pageRow = append(pageRow, tgbotapi.NewInlineKeyboardButtonData("⬅️ 上一页", CallbackAdminInviteCodes+":"+fmt.Sprintf("%d", page-1)))
+		}
+		pageRow = append(pageRow, tgbotapi.NewInlineKeyboardButtonData(
+			fmt.Sprintf("%d/%d", page, totalPages),
+			"page:current",
+		))
+		if page < totalPages {
+			pageRow = append(pageRow, tgbotapi.NewInlineKeyboardButtonData("➡️ 下一页", CallbackAdminInviteCodes+":"+fmt.Sprintf("%d", page+1)))
+		}
+		rows = append(rows, pageRow)
+	}
+
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("➕ 创建邀请码", CallbackAdminCreateInviteCode),
+	))
+
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("⬅️ 返回", CallbackAdminMenu),
+	))
+
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(rows...)
+
+	return CallbackResponse{
+		EditText:   text,
+		EditMarkup: &keyboard,
+	}
+}
+
+// showInviteCodeDetail 显示邀请码详情
+func (b *Bot) showInviteCodeDetail(ctx context.Context, code string) CallbackResponse {
+	inviteCode, err := b.inviteCodeService.GetWithUsage(ctx, code)
+	if err != nil {
+		return CallbackResponse{
+			Answer:    "获取邀请码详情失败",
+			ShowAlert: true,
+		}
+	}
+
+	statusEmoji := "✅"
+	statusText := "激活"
+	if inviteCode.Status == "revoked" {
+		statusEmoji = "🚫"
+		statusText = "已撤销"
+	} else if inviteCode.IsExpired() {
+		statusEmoji = "⏰"
+		statusText = "已过期"
+	} else if inviteCode.IsExhausted() {
+		statusEmoji = "💯"
+		statusText = "已用完"
+	}
+
+	usageText := ""
+	if inviteCode.MaxUses == -1 {
+		usageText = fmt.Sprintf("%d / ∞ (无限)", inviteCode.CurrentUses)
+	} else {
+		usageText = fmt.Sprintf("%d / %d", inviteCode.CurrentUses, inviteCode.MaxUses)
+	}
+
+	expireText := "永不过期"
+	if inviteCode.ExpireAt != nil {
+		expireText = timeutil.FormatExpireTime(inviteCode.ExpireAt)
+	}
+
+	text := fmt.Sprintf(`🎟️ <b>邀请码详情</b>
+
+%s <b>%s</b>
+
+<b>邀请码:</b> <code>%s</code>
+<b>状态:</b> %s
+<b>使用次数:</b> %s
+<b>有效期:</b> %s
+<b>描述:</b> %s
+<b>创建时间:</b> %s`,
+		statusEmoji,
+		inviteCode.Code,
+		inviteCode.Code,
+		statusText,
+		usageText,
+		expireText,
+		inviteCode.Description,
+		timeutil.FormatDateTime(inviteCode.CreatedAt),
+	)
+
+	if len(inviteCode.UsageRecords) > 0 {
+		text += "\n\n<b>使用记录:</b>\n"
+		for i, record := range inviteCode.UsageRecords {
+			if i >= 5 {
+				text += fmt.Sprintf("\n... 还有 %d 条记录", len(inviteCode.UsageRecords)-5)
+				break
+			}
+			text += fmt.Sprintf("• 用户 ID: %d, 时间: %s\n",
+				record.UserID,
+				timeutil.FormatDateTime(record.UsedAt),
+			)
+		}
+	}
+
+	var rows [][]tgbotapi.InlineKeyboardButton
+
+	if inviteCode.Status == "active" && !inviteCode.IsExpired() && !inviteCode.IsExhausted() {
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🚫 撤销邀请码", CallbackAdminRevokeInviteCode+":"+code),
+		))
+	}
+
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("⬅️ 返回列表", CallbackAdminInviteCodes+":1"),
+	))
+
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(rows...)
+
+	return CallbackResponse{
+		EditText:   text,
+		EditMarkup: &keyboard,
+	}
+}
+
+// showCreateInviteCodeMenu 显示创建邀请码菜单
+func (b *Bot) showCreateInviteCodeMenu(ctx context.Context) CallbackResponse {
+	text := `➕ <b>创建邀请码</b>
+
+请选择创建方式：
+
+<b>快速预设：</b>
+• <b>单次使用</b> - 1次使用，30天有效
+• <b>标准多次</b> - 10次使用，30天有效
+• <b>长期多次</b> - 50次使用，90天有效
+• <b>无限使用</b> - 无限次，永不过期
+
+<b>自定义：</b>
+• 使用命令自定义参数`
+
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("1️⃣ 单次使用", CallbackAdminQuickCreateCode+":single"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🔟 标准多次", CallbackAdminQuickCreateCode+":standard"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("💯 长期多次", CallbackAdminQuickCreateCode+":longterm"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("♾️ 无限使用", CallbackAdminQuickCreateCode+":unlimited"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("⬅️ 返回列表", CallbackAdminInviteCodes+":1"),
+		),
+	)
+
+	return CallbackResponse{
+		EditText:   text,
+		EditMarkup: &keyboard,
+	}
+}
+
+// handleQuickCreateInviteCode 处理快速创建邀请码
+func (b *Bot) handleQuickCreateInviteCode(ctx context.Context, preset string, createdBy int64) CallbackResponse {
+	var maxUses int
+	var expireDays int
+	var description string
+
+	switch preset {
+	case "single":
+		maxUses = 1
+		expireDays = 30
+		description = "单次使用邀请码"
+	case "standard":
+		maxUses = 10
+		expireDays = 30
+		description = "标准多次使用邀请码"
+	case "longterm":
+		maxUses = 50
+		expireDays = 90
+		description = "长期多次使用邀请码"
+	case "unlimited":
+		maxUses = -1
+		expireDays = 0
+		description = "无限使用邀请码"
+	default:
+		return CallbackResponse{
+			Answer:    "无效的预设选项",
+			ShowAlert: true,
+		}
+	}
+
+	inviteCode, err := b.inviteCodeService.Generate(ctx, maxUses, expireDays, description, createdBy)
+	if err != nil {
+		return CallbackResponse{
+			Answer:    fmt.Sprintf("创建失败: %v", err),
+			ShowAlert: true,
+		}
+	}
+
+	usageText := ""
+	if maxUses == -1 {
+		usageText = "无限次"
+	} else {
+		usageText = fmt.Sprintf("%d次", maxUses)
+	}
+
+	expireText := "永不过期"
+	if expireDays > 0 {
+		expireText = fmt.Sprintf("%d天后过期", expireDays)
+	}
+
+	text := fmt.Sprintf(`✅ <b>邀请码创建成功！</b>
+
+<b>邀请码:</b> <code>%s</code>
+<b>使用次数:</b> %s
+<b>有效期:</b> %s
+<b>描述:</b> %s
+
+📋 点击邀请码可以复制`,
+		inviteCode.Code,
+		usageText,
+		expireText,
+		description,
+	)
+
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("📝 查看详情", CallbackAdminInviteCodeInfo+":"+inviteCode.Code),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("➕ 继续创建", CallbackAdminCreateInviteCode),
+			tgbotapi.NewInlineKeyboardButtonData("📋 邀请码列表", CallbackAdminInviteCodes+":1"),
+		),
+	)
+
+	return CallbackResponse{
+		Answer:     "邀请码创建成功",
+		EditText:   text,
+		EditMarkup: &keyboard,
+	}
+}
+
+// handleRevokeInviteCode 处理撤销邀请码
+func (b *Bot) handleRevokeInviteCode(ctx context.Context, code string) CallbackResponse {
+	if err := b.inviteCodeService.Revoke(ctx, code); err != nil {
+		return CallbackResponse{
+			Answer:    fmt.Sprintf("撤销失败: %v", err),
+			ShowAlert: true,
+		}
+	}
+
+	text := fmt.Sprintf(`✅ <b>邀请码已撤销</b>
+
+邀请码 <code>%s</code> 已被撤销
+该邀请码将无法继续使用`, code)
+
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("📝 查看详情", CallbackAdminInviteCodeInfo+":"+code),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("⬅️ 返回列表", CallbackAdminInviteCodes+":1"),
+		),
+	)
+
+	return CallbackResponse{
+		Answer:     "邀请码已撤销",
+		EditText:   text,
+		EditMarkup: &keyboard,
 	}
 }

@@ -226,3 +226,19 @@ func (s *Service) GetByUsername(ctx context.Context, username string) (*User, er
 	}
 	return user, nil
 }
+
+// MarkInviteCodeUsed 标记用户已使用邀请码
+func (s *Service) MarkInviteCodeUsed(ctx context.Context, userID uint) error {
+	user, err := s.store.Get(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("get user: %w", err)
+	}
+
+	user.UsedInviteCode = true
+
+	if err := s.store.Update(ctx, user); err != nil {
+		return fmt.Errorf("update user: %w", err)
+	}
+
+	return nil
+}
